@@ -1087,30 +1087,38 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       position: absolute; width: 200px; border-radius: 14px; overflow: hidden;
       background: var(--cw-bg); border: 1.5px solid var(--cw-b1); box-shadow: var(--cw-sh);
       cursor: pointer; z-index: 2;
-      transition: transform .18s cubic-bezier(.34,1.4,.64,1), box-shadow .18s, border-color .18s;
+      transition: transform .18s cubic-bezier(.16,1,.3,1), box-shadow .18s, border-color .18s;
     }
-    .cw-node:hover { transform: translateY(-2px); box-shadow: var(--cw-sh2); }
-    .cw-node.active { border-color: var(--nc, #3b82f6) !important; box-shadow: var(--cw-sh2), 0 0 0 3px rgba(59,130,246,.15) !important; }
+    .cw-node:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0,0,0,.12); }
+    .cw-node.cw-node-static { cursor: default; }
+    .cw-node.cw-node-static:hover { transform: none; box-shadow: var(--cw-sh); }
+    .cw-node.active { border-color: var(--nc, #3b82f6) !important; box-shadow: 0 4px 20px rgba(0,0,0,.12), 0 0 0 3px rgba(59,130,246,.15) !important; }
+    /* Карточка группы: шире по тексту, свои скругления и отступы. */
+    .cw-node.cw-node-group { border-radius: 18px; width: max-content; min-width: 140px; max-width: 640px; }
     .cw-head { padding: 11px 12px 11px; display: flex; align-items: center; gap: 8px; }
+    .cw-node-group .cw-head { padding: 14px 14px 13px; }
     .cw-texts { flex: 1; min-width: 0; }
-    .cw-role { font-size: 12.5px; font-weight: 700; color: #fff; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cw-dept { font-size: 10.5px; color: rgba(255,255,255,.7); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cw-role { font-size: 12.5px; font-weight: 700; color: #fff; line-height: 1.3; overflow-wrap: break-word; }
+    .cw-node-group .cw-role { font-size: 13.5px; white-space: nowrap; }
+    .cw-dept { font-size: 10.5px; color: rgba(255,255,255,.7); margin-top: 2px; overflow-wrap: break-word; }
     .cw-arr { width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform .25s cubic-bezier(.4,0,.2,1), background .15s; }
+    .cw-node-group .cw-arr { border-radius: 8px; }
     .cw-arr svg { width: 8px; height: 8px; stroke: #fff; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
     .cw-node.active .cw-arr { transform: rotate(90deg); background: rgba(255,255,255,.35); }
     /* Карточка сотрудника живёт в <body>, а не внутри схемы:
        иначе её обрезает рамка блока. */
     .cw-dp {
-      position: absolute; z-index: 90; width: 308px; max-height: 80vh; overflow-y: auto;
+      position: absolute; z-index: 90; width: 308px; max-width: calc(100vw - 40px);
       font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
       background: var(--cw-bg); border: 1px solid var(--cw-b2); border-radius: 18px;
-      box-shadow: 0 8px 40px rgba(0,0,0,.14); opacity: 0; pointer-events: none;
+      overflow: hidden; box-shadow: 0 4px 18px rgba(0,0,0,.16); opacity: 0; pointer-events: none;
       transform: scale(.96) translateX(-6px);
-      transition: opacity .2s, transform .22s cubic-bezier(.34,1.2,.64,1);
+      transition: opacity .2s, transform .22s cubic-bezier(.16,1,.3,1);
+      display: flex; flex-direction: column;
     }
     .cw-dp.on { opacity: 1; transform: scale(1) translateX(0); pointer-events: auto; }
     .cw-dp-bar { height: 4px; flex-shrink: 0; }
-    .cw-dp-head { padding: 15px 16px 11px; position: relative; flex-shrink: 0; }
+    .cw-dp-head { padding: 15px 16px 11px; position: relative; flex-shrink: 0; border-bottom: 1px solid var(--cw-b1); }
     .cw-dp-x {
       position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; border-radius: 7px;
       background: var(--cw-bg2); border: 1px solid var(--cw-b1);
@@ -1125,7 +1133,14 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--cw-t3);
     }
     .cw-dp-sd { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
-    .cw-dp-body { padding: 2px 16px 18px; }
+    .cw-dp-body {
+      padding: 2px 16px 18px; flex: 1; min-height: 0; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--cw-b2) transparent;
+    }
+    .cw-dp-body::-webkit-scrollbar { width: 6px; }
+    .cw-dp-body::-webkit-scrollbar-track { background: transparent; }
+    .cw-dp-body::-webkit-scrollbar-thumb { background: var(--cw-b2); border-radius: 10px; }
+    .cw-desc { font-size: 12px; color: var(--cw-t2); line-height: 1.6; padding: 2px 0; white-space: pre-wrap; }
     .cw-slb { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--cw-t3); margin: 13px 0 7px; }
     .cw-duty { display: flex; gap: 9px; padding: 5px 0; border-bottom: 1px solid var(--cw-b1); font-size: 12px; color: var(--cw-t2); line-height: 1.5; }
     .cw-duty:last-of-type { border-bottom: none; }
@@ -2992,7 +3007,24 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
     } catch (e) { return h; }
   }
-  function esc(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function isLightColor(h){
+    try {
+      var r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16);
+      return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+    } catch (e) { return false; }
+  }
+  function groupCardWidth(roleText, hasArrow){
+    var probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:-9999px;top:-9999px;' +
+      'font-family:Geist,system-ui,sans-serif;font-weight:700;font-size:13.5px';
+    probe.textContent = roleText;
+    document.body.appendChild(probe);
+    var textW = probe.offsetWidth;
+    probe.remove();
+    return Math.max(140, Math.min(640, Math.ceil(textW + 28 + (hasArrow ? 28 : 0))));
+  }
+  var SEQ = 0;
 
   /* Все схемы на странице: карточка сотрудника всегда одна —
      открытая в соседней схеме закрывается сама. */
@@ -3012,17 +3044,6 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     var CONNS = connsArr || [];
     if (!NODES.length) { root.innerHTML = '<div class="cw-empty">Схема пуста</div>'; return; }
 
-    var padX = 24, padTop = 18, padBottom = 18;
-    var minX = Math.min.apply(null, NODES.map(function(n){ return n.x; }));
-    var minY = Math.min.apply(null, NODES.map(function(n){ return n.y; }));
-    var maxX = Math.max.apply(null, NODES.map(function(n){ return n.x + 200; }));
-    var maxY = Math.max.apply(null, NODES.map(function(n){ return n.y + 70; }));
-    var W = maxX - minX + padX * 2, H = maxY - minY + padTop + padBottom;
-    var shifted = NODES.map(function(n){
-      var c = {}; for (var k in n) c[k] = n[k];
-      c.x = n.x - minX + padX; c.y = n.y - minY + padTop; return c;
-    });
-
     root.innerHTML = '<div class="cw-viewport"><div class="cw-spacer"></div>' +
       '<div class="cw-stage"><svg class="cw-lines"></svg></div></div>';
     var viewport = root.querySelector('.cw-viewport');
@@ -3030,50 +3051,90 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     var stage = root.querySelector('.cw-stage');
     var svg = root.querySelector('.cw-lines');
     var activeId = null, dp = null;
+    var W = 0, H = 0, PAD_X = 40, PAD_TOP = 16, PAD_BOTTOM = 40;
 
     function nodeById(id){
-      for (var i = 0; i < shifted.length; i++) if (shifted[i].id === id) return shifted[i];
+      for (var i = 0; i < NODES.length; i++) if (NODES[i].id === id) return NODES[i];
       return null;
     }
 
+    /* Карточки строятся ровно так же, как в выгрузке из редактора
+       схем: тот же разбор светлого цвета, те же классы, те же
+       заголовки у групп и должностей. */
     var elById = {};
-    shifted.forEach(function(d){
+    NODES.forEach(function(d){
+      var isGroup = d.kind === 'group';
       var el = document.createElement('div');
-      el.className = 'cw-node';
-      el.style.left = d.x + 'px'; el.style.top = d.y + 'px';
+      el.className = isGroup ? 'cw-node cw-node-group' : 'cw-node';
       el.style.setProperty('--nc', d.color);
       var c1 = ha(d.color, .5), c2 = ha(d.color, .93);
-      el.innerHTML =
-        '<div class="cw-head" style="background:linear-gradient(135deg,' + c1 + ',' + c2 + ')">' +
-        '<div class="cw-texts"><div class="cw-role">' + esc(d.role) + '</div>' +
-        '<div class="cw-dept">' + esc(d.dept) + ' · ' + esc(d.sched) + '</div></div>' +
-        '<div class="cw-arr"><svg viewBox="0 0 8 8" fill="none"><path d="M2 1.5l3.5 3L2 7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>';
-      el.addEventListener('click', function(e){ e.stopPropagation(); toggleNode(d.id, el); });
+      var light = isLightColor(d.color);
+      var roleColor = light ? '#1a1a1a' : '#fff';
+      var deptColor = light ? 'rgba(0,0,0,.62)' : 'rgba(255,255,255,.7)';
+      var arrBg = light ? 'rgba(0,0,0,.1)' : 'rgba(255,255,255,.2)';
+      var arrStroke = light ? '#1a1a1a' : '#fff';
+      var subtitle = isGroup ? esc(d.dept || '') : (esc(d.dept || '') + ' · ' + esc(d.sched || ''));
+      var subHtml = subtitle.trim() ? '<div class="cw-dept" style="color:' + deptColor + '">' + subtitle + '</div>' : '';
+      /* Группа без описания раскрывать нечем — она просто шапка. */
+      var expandable = !(isGroup && !d.desc);
+      var arrHtml = expandable
+        ? '<div class="cw-arr" style="background:' + arrBg + '"><svg viewBox="0 0 8 8" fill="none">' +
+          '<path d="M2 1.5l3.5 3L2 7" stroke="' + arrStroke + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
+        : '';
+      if (!expandable) el.classList.add('cw-node-static');
+      var centerText = isGroup && !d.dept && !d.desc;
+      el.innerHTML = '<div class="cw-head" style="background:linear-gradient(135deg,' + c1 + ',' + c2 + ')">' +
+        '<div class="cw-texts"' + (centerText ? ' style="text-align:center"' : '') + '>' +
+        '<div class="cw-role" style="color:' + roleColor + '">' + esc(d.role) + '</div>' + subHtml + '</div>' +
+        arrHtml + '</div>';
+      /* Ширину группы считаем той же меркой, что и редактор, —
+         иначе карточка разъедется на пару пикселей. */
+      if (isGroup) el.style.width = (d.w || groupCardWidth(d.role, expandable)) + 'px';
+      if (expandable) el.addEventListener('click', function(e){ e.stopPropagation(); toggleNode(d.id, el); });
       stage.appendChild(el);
       elById[d.id] = el;
     });
 
+    /* Размеры карточек известны только после отрисовки: у группы
+       ширина по тексту, у длинного названия — перенос строки. */
+    function layout(){
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      NODES.forEach(function(d){
+        var el = elById[d.id];
+        var w = el.offsetWidth || 200, h = el.offsetHeight || 70;
+        if (d.x < minX) minX = d.x;
+        if (d.y < minY) minY = d.y;
+        if (d.x + w > maxX) maxX = d.x + w;
+        if (d.y + h > maxY) maxY = d.y + h;
+      });
+      W = maxX - minX + PAD_X * 2;
+      H = maxY - minY + PAD_TOP + PAD_BOTTOM;
+      NODES.forEach(function(d){
+        var el = elById[d.id];
+        el.style.left = (d.x - minX + PAD_X) + 'px';
+        el.style.top = (d.y - minY + PAD_TOP) + 'px';
+      });
+    }
+
     function nbox(id){
-      var d = nodeById(id);
       var el = elById[id];
-      if (!el || !d) return null;
-      return { cx: d.x + 100, top: d.y, bot: d.y + el.offsetHeight };
+      if (!el) return null;
+      return { cx: el.offsetLeft + el.offsetWidth / 2, top: el.offsetTop, bot: el.offsetTop + el.offsetHeight };
     }
 
     function drawLines(){
       svg.setAttribute('width', stage.offsetWidth);
       svg.setAttribute('height', stage.offsetHeight);
+      /* Цвет линий — из токена схемы, чтобы совпадать с выгрузкой
+         и в светлой, и в тёмной теме. */
+      var defSt = (getComputedStyle(document.body).getPropertyValue('--cw-line') || '').trim() ||
+        (document.body.getAttribute('data-theme') === 'dark' ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.15)');
       var aSet = {};
       if (activeId) CONNS.forEach(function(c){ if (c.from === activeId || c.to === activeId) aSet[c.from + '>' + c.to] = 1; });
       var seen = {}, defs = '<defs>', paths = '', gi = 0;
-      /* Линии подстраиваются под тему страницы: на тёмной чёрный
-         штрих сливается с фоном, на светлой — белый. */
-      var dark = document.body.getAttribute('data-theme') === 'dark';
-      var lineCol = (getComputedStyle(document.body).getPropertyValue('--cw-line') || '').trim() ||
-                    (dark ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.15)');
-      var mid = 'cwah' + (dark ? 'd' : 'l');
-      defs += '<marker id="' + mid + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">' +
-        '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="' + lineCol + '"/></marker>';
+      var uid = root.__cwId || (root.__cwId = 'cw' + (++SEQ));
+      defs += '<marker id="ah-' + uid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
+        '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>';
       CONNS.forEach(function(c){
         var k = c.from + '>' + c.to;
         if (seen[k]) return; seen[k] = 1;
@@ -3081,18 +3142,19 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
         if (!p || !ch) return;
         var my = (p.bot + ch.top) / 2;
         if (aSet[k]) {
-          var sc = (nodeById(c.from) || {}).color || '#3b82f6';
-          var tc = (nodeById(c.to) || {}).color || '#3b82f6';
-          var gid = 'cwg' + (gi++) + Math.random().toString(36).slice(2, 6);
+          var sc = esc((nodeById(c.from) || {}).color || '#3b82f6');
+          var tc = esc((nodeById(c.to) || {}).color || '#3b82f6');
+          var gid = 'g' + (gi++) + '-' + uid;
           defs += '<linearGradient id="' + gid + '" x1="' + p.cx + '" y1="' + p.bot + '" x2="' + ch.cx + '" y2="' + ch.top + '" gradientUnits="userSpaceOnUse">' +
             '<stop offset="0%" stop-color="' + sc + '"/><stop offset="100%" stop-color="' + tc + '"/></linearGradient>';
-          defs += '<marker id="ah-' + gid + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">' +
+          defs += '<marker id="ah-' + gid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
             '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + tc + '"/></marker>';
           paths += '<path d="M' + p.cx + ',' + p.bot + ' C' + p.cx + ',' + my + ' ' + ch.cx + ',' + my + ' ' + ch.cx + ',' + ch.top +
             '" fill="none" stroke="url(#' + gid + ')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-' + gid + ')"/>';
         } else {
+          var st = esc(c.color || defSt);
           paths += '<path d="M' + p.cx + ',' + p.bot + ' C' + p.cx + ',' + my + ' ' + ch.cx + ',' + my + ' ' + ch.cx + ',' + ch.top +
-            '" fill="none" stroke="' + (c.color || lineCol) + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#' + mid + ')"/>';
+            '" fill="none" stroke="' + st + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah-' + uid + ')"/>';
         }
       });
       svg.innerHTML = defs + '</defs>' + paths;
@@ -3120,27 +3182,40 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
         /* В <body>, а не внутрь схемы: рамка блока обрезала бы карточку. */
         document.body.appendChild(dp);
       }
-      var dutiesHtml = (d.duties && d.duties.length)
-        ? d.duties.map(function(t){ return '<div class="cw-duty"><span class="cw-dd" style="background:' + d.color + '"></span>' + esc(t) + '</div>'; }).join('')
-        : '<div class="cw-none">—</div>';
-      var empsHtml = '';
-      if (d.emps !== null && d.emps !== undefined) {
-        empsHtml = !d.emps.length ? '<div class="cw-none">Список уточняется</div>' : d.emps.map(function(e){
-          var ini = (e.name || '').split(' ').map(function(w){ return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
-          var avHtml = e.avatar ? '<img src="' + e.avatar + '" alt="">' : ini;
-          var reddyHtml = e.reddy ? '<div class="cw-eid"><img class="cw-reddy-ic" src="' + REDDY_IC + '" alt="Reddy">' + esc(e.reddy) + '</div>' : '';
-          return '<div class="cw-emp"><div class="cw-av" style="background:' + ha(d.color, .13) + ';color:' + d.color + '">' + avHtml + '</div>' +
-            '<div><div class="cw-en">' + esc(e.name || '') + '</div>' + reddyHtml + '</div></div>';
-        }).join('');
-      }
-      dp.innerHTML =
-        '<div class="cw-dp-bar" style="background:' + d.color + '"></div>' +
+      var isGroup = d.kind === 'group';
+      var head = '<div class="cw-dp-bar" style="background:' + esc(d.color) + '"></div>' +
         '<div class="cw-dp-head"><button type="button" class="cw-dp-x">' +
         '<svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></button>' +
-        '<div class="cw-dp-role">' + esc(d.role) + '</div><div class="cw-dp-dept">' + esc(d.dept) + '</div>' +
-        '<div class="cw-dp-sched"><span class="cw-dp-sd" style="background:' + d.color + '"></span>График ' + esc(d.sched) + '</div></div>' +
-        '<div class="cw-dp-body"><div class="cw-slb">Обязанности</div>' + dutiesHtml +
-        (d.emps !== null && d.emps !== undefined ? '<div class="cw-slb">Сотрудники</div>' + empsHtml : '') + '</div>';
+        '<div class="cw-dp-role">' + esc(d.role) + '</div>' +
+        '<div class="cw-dp-dept">' + esc(d.dept || '') + '</div>' +
+        (isGroup ? '' :
+          '<div class="cw-dp-sched"><span class="cw-dp-sd" style="background:' + esc(d.color) + '"></span>График ' + esc(d.sched || '') + '</div>') +
+        '</div>';
+      var body;
+      if (isGroup) {
+        /* У группы вместо обязанностей и сотрудников — описание. */
+        body = '<div class="cw-slb">Описание</div>' +
+          (d.desc ? '<div class="cw-desc">' + esc(d.desc) + '</div>' : '<div class="cw-none">—</div>');
+      } else {
+        var duties = (d.duties && d.duties.length)
+          ? d.duties.map(function(t){ return '<div class="cw-duty"><span class="cw-dd" style="background:' + esc(d.color) + '"></span>' + esc(t) + '</div>'; }).join('')
+          : '<div class="cw-none">—</div>';
+        body = '<div class="cw-slb">Обязанности</div>' + duties;
+        if (d.emps !== null && d.emps !== undefined) {
+          var emps = !d.emps.length
+            ? '<div class="cw-none">Список уточняется</div>'
+            : d.emps.slice().sort(function(a, b){ return (a.name || '').localeCompare(b.name || '', 'ru'); }).map(function(e){
+                var ini = (e.name || '').split(' ').map(function(w){ return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
+                var avHtml = e.avatar ? '<img src="' + esc(e.avatar) + '" alt="">' : ini;
+                var reddyHtml = e.reddy
+                  ? '<div class="cw-eid"><img class="cw-reddy-ic" src="' + REDDY_IC + '" alt="Reddy">' + esc(e.reddy) + '</div>' : '';
+                return '<div class="cw-emp"><div class="cw-av" style="background:' + ha(d.color, .13) + ';color:' + esc(d.color) + '">' + avHtml + '</div>' +
+                  '<div><div class="cw-en">' + esc(e.name || '') + '</div>' + reddyHtml + '</div></div>';
+              }).join('');
+          body += '<div class="cw-slb">Сотрудники</div>' + emps;
+        }
+      }
+      dp.innerHTML = head + '<div class="cw-dp-body">' + body + '</div>';
       dp.querySelector('.cw-dp-x').addEventListener('click', function(ev){ ev.stopPropagation(); closeDP(); });
       posDP(el);
       dp.classList.add('on');
@@ -3151,22 +3226,23 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
        поэтому прокрутка двигает её вместе с содержимым. */
     function posDP(el){
       if (!dp) return;
+      var MARGIN = 16;
       var elR = el.getBoundingClientRect();
       var sx = window.pageXOffset, sy = window.pageYOffset;
       var docW = document.documentElement.clientWidth;
-      var dpW = dp.offsetWidth || 292;
+      var vh = window.innerHeight;
+      dp.style.maxHeight = Math.max(160, vh - MARGIN * 2) + 'px';
+      var dpW = dp.offsetWidth || 308;
       var left = elR.right + 12;
-      if (left + dpW > docW - 10) left = elR.left - dpW - 12;
-      if (left < 10) left = Math.max(10, Math.min(elR.left, docW - dpW - 10));
+      if (left + dpW > docW - MARGIN) left = elR.left - dpW - 12;
+      if (left < MARGIN) left = Math.max(MARGIN, Math.min(elR.left, docW - dpW - MARGIN));
       dp.style.left = (left + sx) + 'px';
-      dp.style.top = (elR.top + sy) + 'px';
-      /* Если панель выше нижнего края экрана — подтягиваем её вверх. */
+      dp.style.top = (Math.max(MARGIN, elR.top) + sy) + 'px';
       requestAnimationFrame(function(){
         var h = dp.offsetHeight;
-        var vh = window.innerHeight;
-        var topVp = elR.top;
-        if (topVp + h > vh - 10) topVp = Math.max(10, vh - h - 10);
-        dp.style.top = (topVp + sy) + 'px';
+        var top = Math.max(MARGIN, elR.top);
+        if (top + h > vh - MARGIN) top = Math.max(MARGIN, vh - h - MARGIN);
+        dp.style.top = (top + sy) + 'px';
       });
     }
 
@@ -3182,8 +3258,9 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
        прокрутки честнее, чем нечитаемая картинка. */
     var MIN_SCALE = .68;
     function fit(){
-      var vw = viewport.clientWidth || root.clientWidth || W;
+      var vw = viewport.clientWidth || root.clientWidth;
       if (!vw) return;
+      layout();
       var scale = Math.min(1, vw / W);
       if (scale < MIN_SCALE) scale = MIN_SCALE;
       stage.style.width = W + 'px';
@@ -3198,8 +3275,12 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       if (act && dp && dp.classList.contains('on')) posDP(act);
     }
 
-    drawLines();
     fit();
+    /* Geist приезжает позже разметки, а от него зависят и ширина
+       группы, и высота карточек — пересчитываем, когда он готов. */
+    if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+      document.fonts.ready.then(function(){ fit(); });
+    }
     var rt;
     window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(fit, 120); });
   }
