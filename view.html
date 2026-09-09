@@ -31,7 +31,7 @@ html,body{height:100%;font-family:'Geist',system-ui,sans-serif;background:var(--
 .body{flex:1;overflow:hidden;position:relative;background:var(--bg);cursor:grab}
 #stage{position:absolute;transform-origin:top left}
 #svg-lines{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:1}
-.onode{position:absolute;width:200px;border-radius:14px;background:var(--bg);border:1.5px solid var(--b1);box-shadow:var(--sh);cursor:pointer;overflow:hidden;transition:transform .18s cubic-bezier(.34,1.4,.64,1),box-shadow .18s,border-color .18s}
+.onode{position:absolute;width:200px;border-radius:14px;background:var(--bg);border:1.5px solid var(--b1);box-shadow:var(--sh);cursor:pointer;overflow:hidden;transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s,border-color .18s}
 .onode:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.12)}
 .onode.active{border-color:#3b82f6 !important;box-shadow:0 4px 20px rgba(0,0,0,.12),0 0 0 3px rgba(59,130,246,.15) !important}
 .onode.onode-static{cursor:default}
@@ -47,10 +47,10 @@ html,body{height:100%;font-family:'Geist',system-ui,sans-serif;background:var(--
 .on-arr{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .25s,background .15s}
 .on-arr svg{width:8px;height:8px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .onode.active .on-arr{transform:rotate(90deg);background:rgba(255,255,255,.35)}
-.dp{position:fixed;z-index:200;width:308px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--b2);border-radius:18px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.14);pointer-events:none;opacity:0;transform:scale(.96) translateX(-6px);transition:opacity .2s,transform .22s cubic-bezier(.34,1.2,.64,1)}
+.dp{position:fixed;z-index:200;width:308px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--b2);border-radius:18px;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.16);pointer-events:none;opacity:0;transform:scale(.96) translateX(-6px);transition:opacity .2s,transform .22s cubic-bezier(.34,1.2,.64,1)}
 .dp.open{opacity:1;transform:scale(1) translateX(0);pointer-events:auto}
 .dp-bar{height:4px}
-.dp-head{padding:15px 16px 11px;position:relative}
+.dp-head{padding:15px 16px 11px;position:relative;flex-shrink:0;border-bottom:1px solid var(--b1)}
 .dp-x{position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:7px;background:var(--bg2);border:1px solid var(--b1);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .dp-x svg{width:10px;height:10px;stroke:var(--t2);fill:none;stroke-width:2;stroke-linecap:round}
 .dp-role{font-size:14.5px;font-weight:700;letter-spacing:-.02em;color:var(--t1);padding-right:28px;line-height:1.3}
@@ -252,19 +252,6 @@ function groupCardWidth(roleText, hasArrow) {
 }
 
 function init() {
-  const pad = 40;
-  const minX = Math.min.apply(null, NODES.map(function(n){return n.x;}));
-  const minY = Math.min.apply(null, NODES.map(function(n){return n.y;}));
-  const maxX = Math.max.apply(null, NODES.map(function(n){return n.x + (n.kind === 'group' ? (n.w || groupCardWidth(n.role, !!n.desc)) : 200);}));
-  const maxY = Math.max.apply(null, NODES.map(function(n){return n.y + 70;}));
-  W = maxX - minX + pad * 2;
-  H = maxY - minY + pad * 2;
-  stage.style.width = W + 'px';
-  stage.style.height = H + 'px';
-  NODES = NODES.map(function(n){
-    return Object.assign({}, n, {x: n.x - minX + pad, y: n.y - minY + pad});
-  });
-
   NODES.forEach(function(d) {
     const isGroup = d.kind === 'group';
     const el = document.createElement('div');
@@ -272,6 +259,7 @@ function init() {
     el.id = d.id;
     el.style.left = d.x + 'px';
     el.style.top = d.y + 'px';
+    el.style.setProperty('--nc', d.color);
     const c1 = ha(d.color, .5);
     const c2 = ha(d.color, .93);
     const light = isLightColor(d.color);
@@ -298,6 +286,32 @@ function init() {
     });
     stage.appendChild(el);
   });
+
+  /* Размеры карточек известны только после отрисовки: группа шире
+     обычной, а блок с длинным названием выше — иначе холст обрежет
+     край. Поэтому сначала рисуем, потом считаем границы. */
+  const padX = 40, padTop = 16, padBottom = 40;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  NODES.forEach(function(d) {
+    const el = document.getElementById(d.id);
+    const w = (el && el.offsetWidth) || 200, h = (el && el.offsetHeight) || 70;
+    if (d.x < minX) minX = d.x;
+    if (d.y < minY) minY = d.y;
+    if (d.x + w > maxX) maxX = d.x + w;
+    if (d.y + h > maxY) maxY = d.y + h;
+  });
+  W = maxX - minX + padX * 2;
+  H = maxY - minY + padTop + padBottom;
+  stage.style.width = W + 'px';
+  stage.style.height = H + 'px';
+  NODES = NODES.map(function(n){
+    return Object.assign({}, n, {x: n.x - minX + padX, y: n.y - minY + padTop});
+  });
+  NODES.forEach(function(d) {
+    const el = document.getElementById(d.id);
+    if (el) { el.style.left = d.x + 'px'; el.style.top = d.y + 'px'; }
+  });
+
   drawLines();
   setTimeout(function() {
     fitV();
@@ -342,7 +356,7 @@ function openNode(id) {
   document.getElementById('dp-slb-duties').textContent = 'Обязанности';
   document.getElementById('dp-duties').innerHTML = d.duties && d.duties.length
     ? d.duties.map(function(t){
-        return '<div class="dp-duty"><span class="dp-dd" style="background:' + d.color + '"></span>' + esc(t) + '</div>';
+        return '<div class="dp-duty"><span class="dp-dd" style="background:' + esc(d.color) + '"></span>' + esc(t) + '</div>';
       }).join('')
     : '<div class="dp-none">—</div>';
 
@@ -353,11 +367,11 @@ function openNode(id) {
     empSlb.style.display = 'block';
     empDiv.innerHTML = d.emps.length === 0
       ? '<div class="dp-none">Список уточняется</div>'
-      : d.emps.map(function(e) {
+      : d.emps.slice().sort(function(a, b){ return (a.name || '').localeCompare(b.name || '', 'ru'); }).map(function(e) {
           const ini = (e.name || '').split(' ').map(function(w){ return w[0] || ''; }).join('').slice(0,2).toUpperCase();
-          const avHtml = e.avatar ? '<img src="' + e.avatar + '" alt="">' : ini;
+          const avHtml = e.avatar ? '<img src="' + esc(e.avatar) + '" alt="">' : ini;
           const reddyHtml = e.reddy ? '<div class="dp-eid"><img class="reddy-ic" src="' + REDDY + '" alt="Reddy">' + esc(e.reddy) + '</div>' : '';
-          return '<div class="dp-emp"><div class="dp-av" style="background:' + ha(d.color, .13) + ';color:' + d.color + '">' + avHtml + '</div>' +
+          return '<div class="dp-emp"><div class="dp-av" style="background:' + ha(d.color, .13) + ';color:' + esc(d.color) + '">' + avHtml + '</div>' +
                  '<div><div class="dp-en">' + esc(e.name || '') + '</div>' + reddyHtml + '</div></div>';
         }).join('');
   }
@@ -369,24 +383,26 @@ function openNode(id) {
 function posDP(id) {
   const d = NODES.find(function(n){ return n.id === id; });
   if (!d) return;
+  const MARGIN = 24;                    /* тень панели не должна упираться в край окна */
   const r = body.getBoundingClientRect();
-  const cw = (document.getElementById(id) || {}).offsetWidth || 200;
+  const el = document.getElementById(id);
+  const cw = (el && el.offsetWidth) || 200;
   const nx = (d.x + cw) * zoom + vx + r.left;
   const ny = d.y * zoom + vy + r.top;
   let left = nx + 12;
-  if (left + 320 > window.innerWidth - 8) left = Math.max(8, nx - cw * zoom - 328);
-  left = Math.max(8, left);
-  const top = Math.max(r.top + 8, Math.min(ny, window.innerHeight - 200));
+  if (left + 320 > window.innerWidth - MARGIN) left = Math.max(MARGIN, nx - cw * zoom - 328);
+  left = Math.max(MARGIN, left);
   const dp = document.getElementById('dp');
+  /* Высоту ограничиваем окном: длинный список прокручивается внутри
+     .dp-body, а не выезжает за экран. */
+  dp.style.maxHeight = Math.max(160, window.innerHeight - MARGIN * 2) + 'px';
   dp.style.left = left + 'px';
+  const top = Math.max(r.top + 8, MARGIN, ny);
   dp.style.top = top + 'px';
-  dp.style.maxHeight = 'none';
-  requestAnimationFrame(function() {
-    const dpR = dp.getBoundingClientRect();
-    if (dpR.bottom > window.innerHeight - 8) {
-      dp.style.top = Math.max(r.top + 8, window.innerHeight - dpR.height - 8) + 'px';
-    }
-  });
+  const h = dp.offsetHeight;
+  if (top + h > window.innerHeight - MARGIN) {
+    dp.style.top = Math.max(MARGIN, window.innerHeight - MARGIN - h) + 'px';
+  }
 }
 
 function closeDP() {
@@ -420,7 +436,7 @@ function drawLines() {
     });
   }
   const seen = new Set();
-  let defs = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>';
+  let defs = '<defs><marker id="ah" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>';
   let paths = '';
   let gi = 0;
   CONNS.forEach(function(c) {
@@ -435,14 +451,14 @@ function drawLines() {
     if (isA) {
       const srcN = NODES.find(function(n){ return n.id === c.from; });
       const tgtN = NODES.find(function(n){ return n.id === c.to; });
-      const sc = (srcN && srcN.color) || '#3b82f6';
-      const tc = (tgtN && tgtN.color) || '#3b82f6';
+      const sc = esc((srcN && srcN.color) || '#3b82f6');
+      const tc = esc((tgtN && tgtN.color) || '#3b82f6');
       const gid = 'g' + gi++;
       defs += '<linearGradient id="' + gid + '" x1="' + p.cx + '" y1="' + p.bot + '" x2="' + ch.cx + '" y2="' + ch.top + '" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="' + sc + '"/><stop offset="100%" stop-color="' + tc + '"/></linearGradient>';
-      defs += '<marker id="ah-' + gid + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + tc + '"/></marker>';
+      defs += '<marker id="ah-' + gid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + tc + '"/></marker>';
       paths += '<path d="M' + p.cx + ',' + p.bot + ' C' + p.cx + ',' + my + ' ' + ch.cx + ',' + my + ' ' + ch.cx + ',' + ch.top + '" fill="none" stroke="url(#' + gid + ')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-' + gid + ')"/>';
     } else {
-      const st = c.color || defSt;
+      const st = esc(c.color || defSt);
       paths += '<path d="M' + p.cx + ',' + p.bot + ' C' + p.cx + ',' + my + ' ' + ch.cx + ',' + my + ' ' + ch.cx + ',' + ch.top + '" fill="none" stroke="' + st + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>';
     }
   });

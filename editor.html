@@ -113,17 +113,17 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
 .snap-lbl{position:absolute;pointer-events:none;z-index:1000;font-size:10px;font-weight:700;font-family:'Geist Mono',monospace;color:#3b82f6;background:rgba(255,255,255,.9);border:1px solid #3b82f6;border-radius:4px;padding:1px 5px;white-space:nowrap;display:none}
 
 /* NODE */
-.onode{position:absolute;width:196px;border-radius:14px;overflow:hidden;background:var(--surface);border:1.5px solid var(--b1);box-shadow:var(--sh);cursor:grab;user-select:none;transition:box-shadow .15s,border-color .15s}
+.onode{position:absolute;width:200px;border-radius:14px;overflow:hidden;background:var(--surface);border:1.5px solid var(--b1);box-shadow:var(--sh);cursor:grab;user-select:none;transition:box-shadow .15s,border-color .15s}
 .onode:hover{box-shadow:var(--sh2)}
 .onode.sel{border-color:var(--accent)!important;box-shadow:var(--sh2),0 0 0 3px rgba(59,130,246,.18)!important}
 .onode.multi-sel{border-color:#f59e0b!important;box-shadow:var(--sh2),0 0 0 3px rgba(245,158,11,.18)!important}
 .onode.conn-src{border-color:#f59e0b!important;box-shadow:0 0 0 3px rgba(245,158,11,.25)!important}
 .onode.conn-tgt-ok{border-color:#22c55e!important;box-shadow:0 0 0 3px rgba(34,197,94,.2)!important;cursor:crosshair!important}
-.on-head{padding:11px 12px 10px;display:flex;align-items:center;gap:8px}
+.on-head{padding:11px 12px 11px;display:flex;align-items:center;gap:8px}
 .on-texts{flex:1;min-width:0}
 .on-role{font-size:12.5px;font-weight:700;color:#fff;line-height:1.3;overflow-wrap:break-word}
 .on-dept{font-size:10.5px;color:rgba(255,255,255,.7);margin-top:2px;overflow-wrap:break-word}
-.on-arr{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .25s,background .15s}
+.on-arr{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:transform .25s cubic-bezier(.4,0,.2,1),background .15s}
 .on-arr svg{width:8px;height:8px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .onode.sel .on-arr,.onode.multi-sel .on-arr{transform:rotate(90deg);background:rgba(255,255,255,.35)}
 /* Группа — шапка над должностями: шире по тексту, крупнее подпись.
@@ -542,7 +542,7 @@ function fitView() {
 applyT();
 
 // ═══════════════════════════ NODES ═══════════════════════════
-const NW = 196, NH = 68;
+const NW = 200, NH = 70;
 
 /* Блок бывает двух видов: должность (обязанности, сотрудники, график)
    и группа — шапка направления с описанием. Модель у них одна, поле
@@ -1034,7 +1034,7 @@ function drawLines(){
   if(selId)conns.forEach(c=>{if(c.from===selId||c.to===selId)actSet.add(c.from+'>'+c.to);});
   const seen=new Set();let defs='<defs>',paths='',gi=0;
   // default marker
-  defs+=`<marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>`;
+  defs+=`<marker id="ah" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>`;
   conns.forEach(c=>{
     const k=c.from+'>'+c.to;if(seen.has(k))return;seen.add(k);
     const p=nodeBox(c.from),ch=nodeBox(c.to);if(!p||!ch)return;
@@ -1044,7 +1044,7 @@ function drawLines(){
       const sc=nodes[c.from]?.color||'#3b82f6',tc=nodes[c.to]?.color||'#3b82f6';
       const gid='g'+gi++;
       defs+=`<linearGradient id="${gid}" x1="${p.cx}" y1="${p.bot}" x2="${ch.cx}" y2="${ch.top}" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${sc}"/><stop offset="100%" stop-color="${tc}"/></linearGradient>`;
-      defs+=`<marker id="ah-${gid}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="${tc}"/></marker>`;
+      defs+=`<marker id="ah-${gid}" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="${tc}"/></marker>`;
       paths+=`<path d="M${p.cx},${p.bot} C${p.cx},${my2} ${ch.cx},${my2} ${ch.cx},${ch.top}" fill="none" stroke="url(#${gid})" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-${gid})"/>`;
     } else {
       const st=c.color||defStroke;
