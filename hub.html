@@ -145,6 +145,16 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
 .row2{display:flex;gap:6px}
 .row2>*{flex:1;min-width:0}
 
+/* ── ТАБЛИЦА: вставка и колонки ───────────────────── */
+.paste-zone{min-height:66px;padding:11px 12px;border:1.5px dashed var(--b3);border-radius:10px;background:var(--s2);font-size:12px;color:var(--t2);line-height:1.55;outline:none;cursor:text;white-space:pre-wrap;transition:border-color .15s,background .15s}
+.paste-zone:empty::before{content:attr(data-ph);color:var(--t3)}
+.paste-zone:focus,.paste-zone.drop-on{border-color:var(--accent);background:rgba(59,130,246,.07)}
+.col-row{display:flex;gap:4px;align-items:center;margin-bottom:5px}
+.col-row input[type=text]{flex:1;min-width:0}
+.col-row select{width:100px;flex-shrink:0}
+.cell-link{margin-top:4px}
+.cell-link input{font-size:11.5px;padding:5px 8px}
+
 /* ── MODAL / TOAST ──────────────────────────────────── */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.42);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
 .ov.on{display:flex}
@@ -328,6 +338,10 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
         <button class="btn" id="add-chats">
           <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12Z"/><path d="M8.5 11h7M8.5 14h4"/></svg>
           Секция чатов
+        </button>
+        <button class="btn" id="add-table">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg>
+          Секция-таблица
         </button>
         <button class="btn" id="add-contacts">
           <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
@@ -722,6 +736,155 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       .chat-tile, .chat-tile:hover, .tile-cta svg { transition: none; transform: none; }
       .chat-note, .chat-tile .tile-desc, .chat-tile .tile-cta { transition: opacity 180ms linear; }
       .chat-note, .chat-note.on { transform: none; }
+    }
+
+    /* ── Сворачиваемые секции ────────────────────────────
+       Свёрнутое состояние — класс на секции. Высоту анимируем
+       через grid-template-rows: 0fr ↔ 1fr, без замеров в JS. */
+    .sec-toggle { display: flex; align-items: center; gap: .625rem; width: 100%; text-align: left; margin-bottom: .25rem; border-radius: 6px; }
+    .sec-toggle:focus-visible { outline: 2px solid var(--hub-accent); outline-offset: 3px; }
+    .sec-sum {
+      display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+      font-family: 'Manrope', sans-serif; font-size: 12.5px; font-weight: 600; color: var(--hub-soft);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      opacity: 0; transform: translateX(-4px);
+      transition: opacity 200ms cubic-bezier(.4,0,.2,1), transform 200ms cubic-bezier(.4,0,.2,1);
+    }
+    .is-collapsed .sec-sum, .sec-sum.is-pinned { opacity: 1; transform: none; }
+    .sec-sum i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+    .sec-chev {
+      margin-left: auto; width: 30px; height: 30px; min-width: 30px; border-radius: 8px;
+      border: 1px solid var(--hub-line); display: flex; align-items: center; justify-content: center;
+      color: var(--hub-muted); transition: border-color 150ms, color 150ms;
+    }
+    .sec-chev svg { width: 14px; height: 14px; transition: transform 250ms cubic-bezier(.4,0,.2,1); }
+    .is-collapsed .sec-chev svg { transform: rotate(-90deg); }
+    .sec-toggle:hover .sec-chev { border-color: var(--hub-accent); color: var(--hub-accent); }
+    .sec-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 300ms cubic-bezier(.4,0,.2,1); }
+    .is-collapsed .sec-body { grid-template-rows: 0fr; }
+    .sec-inner { min-height: 0; overflow: hidden; }
+    /* нижний отступ — чтобы overflow не срезал тень карточки */
+    .sec-pad { padding: .5rem 0 3px; display: flex; flex-direction: column; gap: .75rem; }
+
+    /* ── Блок «Таблица» ──────────────────────────────────
+       Два вида одних данных: карточки-строки и классическая
+       таблица. Оформление ячейки задаёт тип колонки. */
+    :root {
+      --hub-pill:      #EEF1F5;
+      --hub-pill-text: #344563;
+      --hub-row-hv:    #F4F7FD;
+      --hub-soft-bg:   #E9F2FF;
+      --hub-line2:     #EBECF0;
+    }
+    body[data-theme="dark"] {
+      --hub-pill:      rgba(255,255,255,.07);
+      --hub-pill-text: #b6c2cf;
+      --hub-row-hv:    rgba(255,255,255,.04);
+      --hub-soft-bg:   rgba(87,157,255,.14);
+      --hub-line2:     rgba(255,255,255,.07);
+    }
+    .tb-block [hidden] { display: none !important; }
+    .tb-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .tb-search { position: relative; flex: 1 1 220px; max-width: 340px; }
+    .tb-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--hub-soft); }
+    .tb-search input {
+      width: 100%; font: inherit; font-size: 13px; color: var(--hub-text); background: var(--hub-tile);
+      border: 1px solid var(--hub-line); border-radius: 8px; padding: 8px 10px 8px 34px; outline: none;
+    }
+    .tb-search input:focus { border-color: var(--hub-accent); box-shadow: 0 0 0 3px var(--hub-soft-bg); }
+    .tb-search input::placeholder { color: var(--hub-soft); }
+    .tb-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tb-chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 99px;
+      font-size: 12.5px; font-weight: 700; color: var(--hub-muted);
+      border: 1px solid var(--hub-line); background: var(--hub-tile);
+      transition: border-color 150ms, color 150ms, background-color 150ms;
+    }
+    .tb-chip b { font-weight: 700; color: var(--hub-soft); }
+    .tb-chip:hover { border-color: var(--hub-accent); color: var(--hub-accent); }
+    .tb-chip.on { background: var(--hub-accent); border-color: var(--hub-accent); color: #FFFFFF; }
+    .tb-chip.on b { color: rgba(255,255,255,.75); }
+    .tb-count { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--hub-soft); font-variant-numeric: tabular-nums; }
+    .tb-empty { padding: 24px; text-align: center; color: var(--hub-soft); font-size: 13px; font-weight: 600; }
+
+    .tb-list { display: flex; flex-direction: column; gap: 18px; }
+    .tb-grp { display: flex; flex-direction: column; gap: 8px; }
+    .tb-grp-hd {
+      display: flex; align-items: center; gap: 9px; padding-left: 2px;
+      font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--hub-text);
+    }
+    .tb-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+    .tb-grp-n { font-weight: 700; color: var(--hub-soft); letter-spacing: 0; text-transform: none; }
+
+    .tb-card {
+      display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start;
+      background: var(--hub-tile); border: 1px solid var(--hub-line); border-radius: 10px; padding: 14px 16px;
+      transition: border-color 200ms cubic-bezier(.4,0,.2,1), box-shadow 200ms cubic-bezier(.4,0,.2,1), transform 200ms cubic-bezier(.4,0,.2,1);
+    }
+    .tb-card.has-desc.has-meta { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.6fr) minmax(0, 1fr); }
+    .tb-card.has-desc.no-meta, .tb-card.has-meta.no-desc { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+    .tb-card[data-href] { cursor: pointer; }
+    .tb-card[data-href]:hover { border-color: var(--hub-accent); box-shadow: var(--hub-shadow-hv); transform: translateY(-1px); }
+    @media (max-width: 860px) {
+      .tb-card, .tb-card.has-desc.has-meta, .tb-card.has-desc.no-meta, .tb-card.has-meta.no-desc { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    }
+
+    .tb-doc { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+    .tb-ic { width: 30px; height: 30px; min-width: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .tb-ic svg { width: 16px; height: 16px; }
+    .tb-doc-tx { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .tb-title {
+      font-family: 'Unbounded', sans-serif; font-size: 13.5px; font-weight: 600; line-height: 1.4;
+      color: var(--hub-text); overflow-wrap: anywhere;
+    }
+    a.tb-title { color: var(--hub-accent); }
+    a.tb-title:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+    .tb-out { display: inline-block; width: 12px; height: 12px; margin-left: 5px; vertical-align: -1px; opacity: 0; transform: translate(-3px, 3px); transition: opacity 180ms, transform 180ms; }
+    .tb-card:hover .tb-out, .tb-r:hover .tb-out, a.tb-title:focus-visible .tb-out { opacity: 1; transform: none; }
+    .tb-src { font-size: 11.5px; font-weight: 600; color: var(--hub-soft); }
+
+    .tb-desc { display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.55; color: var(--hub-muted); overflow-wrap: anywhere; }
+    .tb-meta { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .tb-label { font-size: 10.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--hub-soft); margin-bottom: 3px; }
+    .tb-val { font-size: 12.5px; line-height: 1.45; color: var(--hub-text); overflow-wrap: anywhere; }
+    .tb-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tb-pill { font-size: 12px; font-weight: 600; line-height: 1.45; color: var(--hub-pill-text); background: var(--hub-pill); border-radius: 6px; padding: 3px 8px; }
+    a.tb-a { color: var(--hub-accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; overflow-wrap: anywhere; }
+    a.tb-a:hover { text-decoration-thickness: 2px; }
+
+    .tb-wrap { overflow-x: auto; background: var(--hub-tile); border: 1px solid var(--hub-line); border-radius: 10px; }
+    .tb-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 720px; }
+    .tb-table th {
+      text-align: left; white-space: nowrap; padding: 12px 14px; border-bottom: 1px solid var(--hub-line);
+      font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--hub-soft);
+    }
+    .tb-table td { padding: 13px 14px; border-bottom: 1px solid var(--hub-line2); vertical-align: top; font-size: 13.5px; line-height: 1.5; color: var(--hub-muted); }
+    .tb-table tbody tr:last-child td { border-bottom: 0; }
+    .tb-table .tb-title { font-family: 'Manrope', sans-serif; font-weight: 700; }
+    .tb-r { transition: background-color 120ms; }
+    .tb-r[data-href] { cursor: pointer; }
+    .tb-r:hover td { background: var(--hub-row-hv); }
+    .tb-g td { background: var(--hub-row-hv); padding: 9px 14px; }
+
+    /* Тип документа по ссылке: иконка и подложка */
+    .tb-k-sheets { background: #E6F4EA; color: #1E8E3E; }
+    .tb-k-docs   { background: #E8F0FE; color: #1A73E8; }
+    .tb-k-forms  { background: #F1EAFA; color: #7248B9; }
+    .tb-k-slides { background: #FEF3E0; color: #C26401; }
+    .tb-k-page   { background: #E9F2FF; color: #0052CC; }
+    .tb-k-drive, .tb-k-mail, .tb-k-link { background: #EEF1F5; color: #5E6C84; }
+    body[data-theme="dark"] .tb-k-sheets { background: rgba(87,194,122,.14); color: #57C27A; }
+    body[data-theme="dark"] .tb-k-docs   { background: rgba(123,170,247,.14); color: #7BAAF7; }
+    body[data-theme="dark"] .tb-k-forms  { background: rgba(179,146,240,.15); color: #B392F0; }
+    body[data-theme="dark"] .tb-k-slides { background: rgba(245,166,35,.14); color: #F5A623; }
+    body[data-theme="dark"] .tb-k-page   { background: rgba(87,157,255,.14); color: #579DFF; }
+    body[data-theme="dark"] .tb-k-drive,
+    body[data-theme="dark"] .tb-k-mail,
+    body[data-theme="dark"] .tb-k-link  { background: rgba(255,255,255,.07); color: #9fadbc; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sec-body, .sec-chev svg, .sec-sum, .tb-card, .tb-out { transition: none; }
+      .tb-card[data-href]:hover { transform: none; }
     }
 </script>
 
@@ -1184,8 +1347,67 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       });
     });
 
+    /* Сворачиваемые секции. Свёрнутое тело помечаем inert —
+       иначе Tab уходит в невидимые ссылки. */
+    Array.prototype.forEach.call(document.querySelectorAll('.sec-toggle'), function(btn){
+      const sec = btn.closest('.hub-sec');
+      const body = sec && sec.querySelector('.sec-body');
+      if (!sec) return;
+      btn.addEventListener('click', function(){
+        const shut = sec.classList.toggle('is-collapsed');
+        btn.setAttribute('aria-expanded', String(!shut));
+        if (body) { if (shut) body.setAttribute('inert', ''); else body.removeAttribute('inert'); }
+      });
+    });
+
+    /* Таблица: поиск по тексту и фильтр по группам */
+    Array.prototype.forEach.call(document.querySelectorAll('.tb-block'), function(block){
+      const input = block.querySelector('.tb-search input');
+      const chips = block.querySelectorAll('.tb-chip');
+      if (!input && !chips.length) return;
+      const rows = block.querySelectorAll('[data-row]');
+      const grps = block.querySelectorAll('[data-grp]');
+      const count = block.querySelector('.tb-count');
+      const empty = block.querySelector('.tb-empty');
+      let grp = null;
+
+      function apply(){
+        const q = input ? input.value.trim().toLowerCase() : '';
+        const seen = {};
+        let shown = 0;
+        Array.prototype.forEach.call(rows, function(r){
+          const g = r.getAttribute('data-g') || '';
+          const ok = (grp === null || g === grp) && (!q || r.textContent.toLowerCase().indexOf(q) >= 0);
+          r.hidden = !ok;
+          if (ok) { shown++; seen['k' + g] = 1; }
+        });
+        Array.prototype.forEach.call(grps, function(g){
+          g.hidden = !seen['k' + (g.getAttribute('data-grp') || '')];
+        });
+        if (count) count.textContent = shown + ' из ' + rows.length;
+        if (empty) empty.hidden = shown > 0;
+      }
+
+      if (input) input.addEventListener('input', apply);
+      Array.prototype.forEach.call(chips, function(chip){
+        chip.addEventListener('click', function(){
+          grp = chip.hasAttribute('data-chip') ? chip.getAttribute('data-chip') : null;
+          Array.prototype.forEach.call(chips, function(c){ c.classList.toggle('on', c === chip); });
+          apply();
+        });
+      });
+    });
+
+    /* Строка таблицы с ссылкой в названии кликается целиком */
     document.addEventListener('click', function(e){
-      const a = e.target.closest('a.group');
+      const row = e.target.closest('[data-row][data-href]');
+      if (!row || e.target.closest('a, button, input')) return;
+      if (window.getSelection && String(window.getSelection())) return;   /* выделяют текст */
+      openTopNewTab(row.getAttribute('data-href'));
+    });
+
+    document.addEventListener('click', function(e){
+      const a = e.target.closest('a.group, a.hub-link');
       if(!a) return;
 
       const href = a.getAttribute('href');
@@ -1538,6 +1760,25 @@ function newTilesSection(t){
            accent:ACCENTS[Math.floor(Math.random()*ACCENTS.length)], grid:'220',
            tiles:[newTile('Первая плитка')] };
 }
+/* Типы колонок таблицы. Тип решает, как ячейка выглядит
+   на странице; данные в ячейке от него не зависят. */
+var COL_KINDS = [
+  ['title',  'Название'],
+  ['group',  'Группа'],
+  ['text',   'Описание'],
+  ['tags',   'Метки'],
+  ['field',  'Поле'],
+  ['hidden', 'Скрыть']
+];
+function newCol(name, kind){ return { id:uid('k'), name:name || 'Колонка', kind:kind || 'field' }; }
+function newRow(){ return { id:uid('r'), c:{} }; }
+function newTableSection(){
+  return { id:uid('s'), type:'table', title:'Таблицы направления', accent:ACCENTS[2],
+           view:'cards', search:false, collapsible:false,
+           cols:[ newCol('Документ','title'), newCol('Описание','text'),
+                  newCol('Кто заполняет','tags'), newCol('Для кого','tags') ],
+           rows:[] };
+}
 function newContactsSection(){
   return { id:uid('s'), type:'contacts', title:'Контакты', accent:'#3D5A73', groups:[newGroup()] };
 }
@@ -1702,16 +1943,222 @@ function personHtml(p, hi, editing){
   return h;
 }
 
-function sectionHtml(s, editing){
-  var eid = editing ? ' data-eid="s:' + s.id + '"' : '';
-  var h = '';
-  h += '<!-- СЕКЦИЯ: ' + String(s.title || '').toUpperCase() + ' -->\n';
-  h += '     <div class="flex flex-col gap-4"' + eid + '>\n';
-  h += '      <div class="flex items-center gap-2.5 mb-1">\n';
-  h += '       <span class="w-1 h-5 rounded-full bg-[' + (s.accent || ACCENTS[0]) + ']"></span>\n';
-  h += '       <h2 class="section-title text-base font-bold text-[#172B4D] tracking-wide">' + esc(s.title) + '</h2>\n';
-  h += '      </div>\n';
+/* ── Таблица ───────────────────────────────────────── */
 
+var TB_DOTS = ['#0052CC','#00875A','#5243AA','#B45309','#00698C','#943D73','#5E6C84'];
+var SVG_OUT = '<svg class="tb-out" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 17 17 7M8 7h9v9"/></svg>';
+var SVG_SEARCH = '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path stroke-linecap="round" d="m20 20-4-4"/></svg>';
+var SVG_CHEV = '<svg fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"/></svg>';
+
+var DOC_RECT = 'M6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3Z';
+var LINK_KINDS = {
+  sheets: { label:'Google Таблица',     d:DOC_RECT + 'M4 9h16M4 15h16M10 9v12' },
+  excel:  { label:'Excel',              d:DOC_RECT + 'M4 9h16M4 15h16M10 9v12', cls:'sheets' },
+  docs:   { label:'Google Документ',    d:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8ZM14 3v5h5M9 13h6M9 17h4' },
+  forms:  { label:'Google Форма',       d:DOC_RECT + 'M8.5 9h.01M8.5 13h.01M8.5 17h.01M11.5 9H16M11.5 13H16M11.5 17H16' },
+  slides: { label:'Google Презентация', d:DOC_RECT + 'M8 8.5h8v6H8Z' },
+  drive:  { label:'Google Диск',        d:ICONS.folder },
+  page:   { label:'Confluence',         d:ICONS.doc },
+  mail:   { label:'Почта',              d:'M3.5 6h17v12h-17ZM3.5 6.5l8.5 6 8.5-6' },
+  link:   { label:'',                   d:ICONS.link }
+};
+
+/** Тип документа по адресу: иконка и подпись под названием. */
+function linkKind(href){
+  var h = String(href || '');
+  var k = /docs\.google\.com\/spreadsheets|sheets\.google\./i.test(h) ? 'sheets'
+        : /docs\.google\.com\/document/i.test(h) ? 'docs'
+        : /docs\.google\.com\/forms|forms\.gle\//i.test(h) ? 'forms'
+        : /docs\.google\.com\/presentation/i.test(h) ? 'slides'
+        : /drive\.google\.com/i.test(h) ? 'drive'
+        : /\.xlsx?(?:[?#]|$)/i.test(h) ? 'excel'
+        : /^mailto:/i.test(h) ? 'mail'
+        : /confluence|\/wiki\/|\/display\/|viewpage\.action|\/pages\/\d/i.test(h) ? 'page'
+        : 'link';
+  var d = LINK_KINDS[k];
+  var label = d.label;
+  if (!label) { var m = h.match(/^https?:\/\/(?:www\.)?([^\/?#]+)/i); label = m ? m[1] : 'Ссылка'; }
+  return { cls: d.cls || k, label: label,
+           svg: '<svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="' + att(d.d) + '"/></svg>' };
+}
+
+function cellOf(row, colId){ return (row.c && row.c[colId]) || { t:'', h:'' }; }
+function splitTags(t){
+  return String(t || '').split(/\s*(?:\s\+\s|\+|\n|;)\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+}
+function extA(href, cls, inner){
+  return '<a class="' + cls + ' hub-link" href="' + att(href) + '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
+}
+/** Текст ячейки: переносы строк и голые адреса становятся ссылками. */
+function richText(cell){
+  var t = esc(cell.t || '');
+  if (cell.h) return extA(cell.h, 'tb-a', t || esc(cell.h));
+  return t.replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g, function(u){
+    return extA(u.replace(/&amp;/g, '&'), 'tb-a', u);
+  }).replace(/\n/g, '<br>');
+}
+function pillsHtml(cell){
+  var p = splitTags(cell.t).map(function(x){ return '<span class="tb-pill">' + esc(x) + '</span>'; }).join('');
+  if (!p) return cell.h ? richText(cell) : '';
+  return cell.h ? extA(cell.h, 'tb-pills', p) : '<div class="tb-pills">' + p + '</div>';
+}
+function titleHtml(cell){
+  var name = cell.t || cell.h || '—';
+  if (!cell.h) {
+    return '<div class="tb-doc"><div class="tb-doc-tx"><span class="tb-title">' + esc(name) + '</span></div></div>';
+  }
+  var k = linkKind(cell.h);
+  return '<div class="tb-doc"><span class="tb-ic tb-k-' + k.cls + '">' + k.svg + '</span>' +
+    '<div class="tb-doc-tx">' + extA(cell.h, 'tb-title', esc(name) + SVG_OUT) +
+    '<span class="tb-src">' + esc(k.label) + '</span></div></div>';
+}
+
+/** Раскладка колонок по ролям в карточке. */
+function tableLayout(s){
+  var cols = (s.cols || []).filter(function(c){ return c.kind !== 'hidden'; });
+  var group = cols.filter(function(c){ return c.kind === 'group'; })[0] || null;
+  var title = cols.filter(function(c){ return c.kind === 'title'; })[0] ||
+              cols.filter(function(c){ return c !== group; })[0] || null;
+  var rest = cols.filter(function(c){ return c !== group && c !== title; });
+  return {
+    cols: cols, group: group, title: title,
+    texts: rest.filter(function(c){ return c.kind === 'text'; }),
+    metas: rest.filter(function(c){ return c.kind !== 'text' && c.kind !== 'group'; })
+  };
+}
+
+/** Строки по группам, в порядке первого появления группы. */
+function tableGroups(s, L){
+  if (!L.group) return [{ name:'', rows:s.rows || [] }];
+  var order = [], map = {};
+  (s.rows || []).forEach(function(r){
+    var g = cellOf(r, L.group.id).t.trim();
+    if (!map['k' + g]) { map['k' + g] = []; order.push(g); }
+    map['k' + g].push(r);
+  });
+  return order.map(function(g){ return { name:g, rows:map['k' + g] }; });
+}
+
+function grpHead(g, i){
+  return '<span class="tb-dot" style="background:' + TB_DOTS[i % TB_DOTS.length] + '"></span>' +
+    esc(g.name) + '<span class="tb-grp-n">· ' + g.rows.length + '</span>';
+}
+
+function tableHtml(s, editing){
+  var L = tableLayout(s);
+  var rows = s.rows || [];
+  var h = '      <article class="contact-card rounded-xl border border-slate-200 bg-[#F7F8FA] p-5 shadow-sm tb-block">\n';
+
+  if (!rows.length || !L.title) {
+    if (editing) h += '       <div class="tb-empty">Таблица пуста. Выберите секцию и вставьте таблицу через Ctrl+V — из Google Таблиц, Excel или Confluence.</div>\n';
+    return h + '      </article>\n';
+  }
+
+  var groups = tableGroups(s, L);
+  var named = groups.filter(function(g){ return g.name; });
+
+  if (s.search) {
+    h += '       <div class="tb-tools">\n';
+    h += '        <label class="tb-search">' + SVG_SEARCH + '<input type="search" placeholder="Найти в таблице" aria-label="Поиск по таблице"></label>\n';
+    if (named.length > 1) {
+      h += '        <div class="tb-chips"><button type="button" class="tb-chip on">Все <b>' + rows.length + '</b></button>';
+      named.forEach(function(g){
+        h += '<button type="button" class="tb-chip" data-chip="' + att(g.name) + '">' + esc(g.name) + ' <b>' + g.rows.length + '</b></button>';
+      });
+      h += '</div>\n';
+    }
+    h += '        <span class="tb-count">' + rows.length + ' из ' + rows.length + '</span>\n';
+    h += '       </div>\n';
+  }
+
+  function rowAttrs(r, g){
+    var href = cellOf(r, L.title.id).h;
+    return ' data-row data-g="' + att(g.name) + '"' + (href ? ' data-href="' + att(href) + '"' : '') +
+           (editing ? ' data-eid="r:' + r.id + '"' : '');
+  }
+
+  if ((s.view || 'cards') === 'table') {
+    var shown = L.cols.filter(function(c){ return c !== L.group; });
+    h += '       <div class="tb-wrap"><table class="tb-table">\n';
+    h += '        <thead><tr>' + shown.map(function(c){ return '<th>' + esc(c.name) + '</th>'; }).join('') + '</tr></thead>\n';
+    h += '        <tbody>\n';
+    groups.forEach(function(g, gi){
+      if (g.name) h += '         <tr class="tb-g" data-grp="' + att(g.name) + '"><td colspan="' + shown.length + '"><div class="tb-grp-hd">' + grpHead(g, gi) + '</div></td></tr>\n';
+      g.rows.forEach(function(r){
+        h += '         <tr class="tb-r"' + rowAttrs(r, g) + '>' + shown.map(function(c){
+          var cell = cellOf(r, c.id);
+          var v = c === L.title ? titleHtml(cell) : c.kind === 'tags' ? pillsHtml(cell) : richText(cell);
+          return '<td>' + v + '</td>';
+        }).join('') + '</tr>\n';
+      });
+    });
+    h += '        </tbody>\n';
+    h += '       </table></div>\n';
+  } else {
+    var cls = 'tb-card' + (L.texts.length ? ' has-desc' : ' no-desc') + (L.metas.length ? ' has-meta' : ' no-meta');
+    h += '       <div class="tb-list">\n';
+    groups.forEach(function(g, gi){
+      h += '        <div class="tb-grp"' + (g.name ? ' data-grp="' + att(g.name) + '"' : '') + '>\n';
+      if (g.name) h += '         <div class="tb-grp-hd">' + grpHead(g, gi) + '</div>\n';
+      g.rows.forEach(function(r){
+        h += '         <div class="' + cls + '"' + rowAttrs(r, g) + '>\n';
+        h += '          ' + titleHtml(cellOf(r, L.title.id)) + '\n';
+        if (L.texts.length) {
+          h += '          <div class="tb-desc">' + L.texts.map(function(c, i){
+            var cell = cellOf(r, c.id);
+            if (!cell.t && !cell.h) return '';
+            return '<div>' + (i ? '<div class="tb-label">' + esc(c.name) + '</div>' : '') + richText(cell) + '</div>';
+          }).join('') + '</div>\n';
+        }
+        if (L.metas.length) {
+          h += '          <div class="tb-meta">' + L.metas.map(function(c){
+            var cell = cellOf(r, c.id);
+            if (!cell.t && !cell.h) return '';
+            var v = c.kind === 'tags' ? pillsHtml(cell)
+                  : c.kind === 'title' ? '<div class="tb-val">' + richText(cell) + '</div>'
+                  : '<div class="tb-val">' + richText(cell) + '</div>';
+            return '<div><div class="tb-label">' + esc(c.name) + '</div>' + v + '</div>';
+          }).join('') + '</div>\n';
+        }
+        h += '         </div>\n';
+      });
+      h += '        </div>\n';
+    });
+    h += '       </div>\n';
+  }
+  if (s.search) h += '       <div class="tb-empty" hidden>Ничего не нашлось. Попробуйте другое слово или выберите «Все».</div>\n';
+  h += '      </article>\n';
+  return h;
+}
+
+function plural(n, one, few, many){
+  var a = Math.abs(n) % 100, b = a % 10;
+  var w = (a > 10 && a < 20) ? many : b === 1 ? one : (b > 1 && b < 5) ? few : many;
+  return n + ' ' + w;
+}
+
+/** Что внутри свёрнутой секции — видно в её заголовке. */
+function sectionSummary(s){
+  var parts = [];
+  if (s.type === 'tiles') parts.push(plural((s.tiles || []).length, 'плитка', 'плитки', 'плиток'));
+  else if (s.type === 'chats') parts.push(plural((s.chats || []).length, 'чат', 'чата', 'чатов'));
+  else if (s.type === 'table') {
+    parts.push(plural((s.rows || []).length, 'запись', 'записи', 'записей'));
+    var L = tableLayout(s);
+    if (L.group && L.title) {
+      var names = tableGroups(s, L).map(function(g){ return g.name; }).filter(Boolean);
+      if (names.length) parts.push(names.slice(0, 4).join(', ') + (names.length > 4 ? '…' : ''));
+    }
+  } else {
+    var n = 0;
+    (s.groups || []).forEach(function(g){ n += (g.people || []).length; });
+    parts.push(plural(n, 'контакт', 'контакта', 'контактов'));
+  }
+  return parts.map(function(p){ return '<span>' + esc(p) + '</span>'; }).join('<i></i>');
+}
+
+function sectionBodyHtml(s, editing){
+  var h = '';
   if (s.type === 'tiles') {
     h += '      <article class="contact-card rounded-xl border border-slate-200 bg-[#F7F8FA] p-5 shadow-sm">\n';
     h += '       <div class="grid grid-auto-' + (s.grid || '220') + ' gap-3">\n\n';
@@ -1724,6 +2171,8 @@ function sectionHtml(s, editing){
     (s.chats || []).forEach(function(c){ h += chatTileHtml(c, editing) + '\n'; });
     h += '       </div>\n';
     h += '      </article>\n';
+  } else if (s.type === 'table') {
+    h += tableHtml(s, editing);
   } else {
     (s.groups || []).forEach(function(g){
       var geid = editing ? ' data-eid="g:' + g.id + '"' : '';
@@ -1740,6 +2189,41 @@ function sectionHtml(s, editing){
       h += '      </article>\n';
     });
   }
+  return h;
+}
+
+function sectionHtml(s, editing){
+  var eid = editing ? ' data-eid="s:' + s.id + '"' : '';
+  var bar = '<span class="w-1 h-5 rounded-full bg-[' + (s.accent || ACCENTS[0]) + ']"></span>';
+  var title = '<h2 class="section-title text-base font-bold text-[#172B4D] tracking-wide">' + esc(s.title) + '</h2>';
+  var h = '';
+  h += '<!-- СЕКЦИЯ: ' + String(s.title || '').toUpperCase() + ' -->\n';
+
+  if (!s.collapsible) {
+    h += '     <div class="hub-sec flex flex-col gap-4"' + eid + '>\n';
+    h += '      <div class="flex items-center gap-2.5 mb-1">\n';
+    h += '       ' + bar + '\n';
+    h += '       ' + title + '\n';
+    h += '      </div>\n';
+    h += sectionBodyHtml(s, editing);
+    h += '     </div>\n';
+    return h;
+  }
+
+  /* Сворачиваемая: на странице открывается свёрнутой. В конструкторе
+     держим развёрнутой — иначе нечего редактировать — и подписываем. */
+  var shut = !editing;
+  h += '     <div class="hub-sec flex flex-col is-collapsible' + (shut ? ' is-collapsed' : '') + '"' + eid + '>\n';
+  h += '      <button type="button" class="sec-toggle" aria-expanded="' + (shut ? 'false' : 'true') + '">\n';
+  h += '       ' + bar + '\n';
+  h += '       ' + title + '\n';
+  h += '       <span class="sec-sum' + (editing ? ' is-pinned' : '') + '">' +
+       (editing ? '<span>Свёрнута на странице</span><i></i>' : '') + sectionSummary(s) + '</span>\n';
+  h += '       <span class="sec-chev">' + SVG_CHEV + '</span>\n';
+  h += '      </button>\n';
+  h += '      <div class="sec-body"' + (shut ? ' inert' : '') + '><div class="sec-inner"><div class="sec-pad">\n';
+  h += sectionBodyHtml(s, editing);
+  h += '      </div></div></div>\n';
   h += '     </div>\n';
   return h;
 }
@@ -1911,6 +2395,11 @@ function resolve(eid){
         if (s.tiles[j].id === id) return { kind:'tile', obj:s.tiles[j], arr:s.tiles, idx:j, section:s };
       }
     }
+    if (kind === 'r' && s.type === 'table') {
+      for (var rr = 0; rr < s.rows.length; rr++) {
+        if (s.rows[rr].id === id) return { kind:'row', obj:s.rows[rr], arr:s.rows, idx:rr, section:s };
+      }
+    }
     if (kind === 'ct' && s.type === 'chats') {
       for (var q = 0; q < s.chats.length; q++) {
         if (s.chats[q].id === id) return { kind:'chat', obj:s.chats[q], arr:s.chats, idx:q, section:s };
@@ -2050,6 +2539,14 @@ function rowHtml(eid, label, opts){
   return h;
 }
 
+/** Подпись строки таблицы в дереве: название, иначе первая непустая ячейка. */
+function rowLabel(s, r){
+  var L = tableLayout(s);
+  var t = L.title ? cellOf(r, L.title.id).t : '';
+  if (!t) (s.cols || []).some(function(c){ t = cellOf(r, c.id).t; return !!t; });
+  return t ? t.split('\n')[0] : 'Пустая строка';
+}
+
 function renderOutline(){
   var h = '';
   h += '<div class="ol-group">' + rowHtml('hero', 'Шапка (hero)', { acts:false, dot:'#0052CC' }) + '</div>';
@@ -2060,6 +2557,7 @@ function renderOutline(){
       dot: s.accent,
       sub: s.type === 'tiles' ? (s.tiles.length + ' пл.')
          : s.type === 'chats' ? (s.chats.length + ' чат.')
+         : s.type === 'table' ? (s.rows.length + ' стр.')
          : (s.groups.length + ' гр.')
     });
     if (s.type === 'tiles') {
@@ -2070,6 +2568,8 @@ function renderOutline(){
       s.chats.forEach(function(c){
         h += rowHtml('ct:' + c.id, c.name, { child:true, sub: c.url ? '' : '⏳' });
       });
+    } else if (s.type === 'table') {
+      s.rows.forEach(function(r){ h += rowHtml('r:' + r.id, rowLabel(s, r), { child:true }); });
     } else {
       s.groups.forEach(function(g){
         h += rowHtml('g:' + g.id, g.title, { child:true, sub: g.people.length + '' });
@@ -2124,7 +2624,17 @@ function doAct(eid, act){
 function reid(o){
   if (!o || typeof o !== 'object') return;
   if (o.id) o.id = uid(o.id[0]);
-  ['tiles','groups','people','stats'].forEach(function(k){
+  /* ячейки строк привязаны к id колонок — переносим вместе с ними */
+  if (Array.isArray(o.cols)) {
+    var map = {};
+    o.cols.forEach(function(c){ var n = uid('k'); map[c.id] = n; c.id = n; });
+    (o.rows || []).forEach(function(r){
+      var c = {};
+      Object.keys(r.c || {}).forEach(function(k){ c[map[k] || k] = r.c[k]; });
+      r.c = c;
+    });
+  }
+  ['tiles','chats','groups','people','stats','rows'].forEach(function(k){
     if (Array.isArray(o[k])) o[k].forEach(reid);
   });
 }
@@ -2212,7 +2722,7 @@ function renderInspector(){
   if (!r) { box.innerHTML = '<div class="insp-empty">Ничего не выбрано.</div>'; return; }
 
   var o = r.obj, h = '';
-  var titles = { hero:'Шапка страницы', section:'Секция', tile:'Плитка', chat:'Чат', group:'Группа контактов', person:'Контакт' };
+  var titles = { hero:'Шапка страницы', section:'Секция', tile:'Плитка', chat:'Чат', group:'Группа контактов', person:'Контакт', row:'Строка таблицы' };
   h += '<div class="insp-head"><span class="kind">' + titles[r.kind] + '</span>';
   if (r.arr) {
     h += '<button class="mini" data-act="up" title="Выше">' + SVG_UP + '</button>' +
@@ -2259,7 +2769,41 @@ function renderInspector(){
   } else if (r.kind === 'section') {
     h += fLabel('Название секции') + fText('title', o.title, 'Название секции');
     h += fLabel('Цвет полоски') + fAccents(o.accent);
-    if (o.type === 'chats') {
+    h += '<div style="margin-top:10px">' + fChk('collapsible', o.collapsible, 'Сворачиваемый блок') + '</div>';
+    if (o.collapsible) {
+      h += '<div class="hintbox" style="margin-top:6px">На странице блок открывается свёрнутым, в заголовке видно, что внутри. В превью он развёрнут, чтобы его можно было править.</div>';
+    }
+    if (o.type === 'table') {
+      h += fLabel('Вид') + fSeg('view', o.view || 'cards', [['cards','Карточки'], ['table','Таблица']]);
+      h += '<div style="margin-top:6px">' + fChk('search', o.search, 'Поиск и фильтр по группам') + '</div>';
+
+      h += fLabel('Данные', 'Ctrl+V из Google Таблиц, Excel, Confluence');
+      h += fSeg('__pasteMode', pasteMode, [['replace','Заменить всё'], ['append','Добавить строки']]);
+      h += '<div class="paste-zone" contenteditable="true" spellcheck="false" data-paste-table style="margin-top:6px" data-ph="' +
+           att(pasteMode === 'append'
+             ? 'Кликните и нажмите Ctrl+V — строки допишутся в конец, по порядку колонок.'
+             : 'Кликните и нажмите Ctrl+V. Первая строка — заголовки колонок, ссылки в ячейках сохранятся.') + '"></div>';
+
+      h += fLabel('Колонки', 'тип задаёт оформление');
+      o.cols.forEach(function(c, i){
+        h += '<div class="col-row">' +
+          '<input type="text" data-col="' + i + '" value="' + att(c.name) + '" placeholder="Название колонки">' +
+          '<select data-col-kind="' + i + '">' + COL_KINDS.map(function(k){
+            return '<option value="' + k[0] + '"' + (k[0] === c.kind ? ' selected' : '') + '>' + k[1] + '</option>';
+          }).join('') + '</select>' +
+          '<button class="mini" data-col-act="up" data-col-i="' + i + '" title="Выше">' + SVG_UP + '</button>' +
+          '<button class="mini" data-col-act="down" data-col-i="' + i + '" title="Ниже">' + SVG_DOWN + '</button>' +
+          '<button class="mini del" data-col-act="del" data-col-i="' + i + '" title="Удалить колонку">' + SVG_DEL + '</button>' +
+          '</div>';
+      });
+      h += '<div class="row2" style="margin-top:4px">' +
+           '<button class="btn" data-add="col" style="justify-content:center">+ Колонка</button>' +
+           '<button class="btn" data-add="row" style="justify-content:center">+ Строка</button></div>';
+      h += '<div class="hintbox"><b>Название</b> — заголовок карточки, со ссылкой получает иконку типа документа. ' +
+           '<b>Группа</b> делит строки на блоки. <b>Описание</b> — основной текст. ' +
+           '<b>Метки</b> режутся по «+» на плашки. <b>Поле</b> — подпись и значение. ' +
+           '<b>Скрыть</b> оставляет данные, но не показывает их. Строки правятся по клику в дереве или в превью.</div>';
+    } else if (o.type === 'chats') {
       h += fLabel('Ширина плиток', 'минимум колонки') + fSel('grid', o.grid, [
         ['280','280px — плотно'], ['320','320px — стандарт'], ['360','360px — длинные описания']
       ]);
@@ -2321,6 +2865,33 @@ function renderInspector(){
     }));
     h += '<button class="btn" data-add="person" style="width:100%;justify-content:center;margin-top:14px">+ Контакт</button>';
 
+  } else if (r.kind === 'row') {
+    var sec = r.section;
+    var groupsUsed = {};
+    sec.cols.forEach(function(c){
+      if (c.kind !== 'group') return;
+      sec.rows.forEach(function(rw){ var v = cellOf(rw, c.id).t; if (v) groupsUsed[v] = 1; });
+    });
+    h += '<datalist id="tb-groups">' + Object.keys(groupsUsed).map(function(g){
+      return '<option value="' + att(g) + '">';
+    }).join('') + '</datalist>';
+    sec.cols.forEach(function(c){
+      var cell = cellOf(o, c.id);
+      var kl = COL_KINDS.filter(function(k){ return k[0] === c.kind; })[0];
+      h += fLabel(c.name || 'Без названия', kl ? kl[1].toLowerCase() : '');
+      if (c.kind === 'text') {
+        h += '<textarea data-cell="' + att(c.id) + '" data-ck="t">' + esc(cell.t) + '</textarea>';
+      } else {
+        h += '<input type="text" data-cell="' + att(c.id) + '" data-ck="t" value="' + att(cell.t) + '"' +
+             (c.kind === 'group' ? ' list="tb-groups"' : '') +
+             ' placeholder="' + (c.kind === 'tags' ? 'Роль + Ещё роль' : '') + '">';
+      }
+      h += '<div class="cell-link"><input type="text" data-cell="' + att(c.id) + '" data-ck="h" value="' + att(cell.h) +
+           '" placeholder="' + (c.kind === 'title' ? 'Ссылка на документ' : 'Ссылка — необязательно') + '"></div>';
+    });
+    h += '<button class="btn" data-add="row-after" style="width:100%;justify-content:center;margin-top:14px">+ Строка ниже</button>';
+    h += '<div class="hintbox">Колонки и их типы настраиваются в самой секции. Метки разделяйте знаком «+».</div>';
+
   } else if (r.kind === 'person') {
     h += fLabel('Имя') + fText('name', o.name, 'Имя Фамилия');
     h += fLabel('Должность') + fText('role', o.role, 'Специалист отдела');
@@ -2341,6 +2912,17 @@ insp.addEventListener('input', function(e){
   var r = sel();
   if (!r) return;
 
+  if (t.dataset.cell) {
+    var cl = r.obj.c[t.dataset.cell] || (r.obj.c[t.dataset.cell] = { t:'', h:'' });
+    cl[t.dataset.ck] = t.dataset.ck === 'h' ? t.value.trim() : t.value;
+    commit(false);
+    return;
+  }
+  if (t.dataset.col !== undefined) {
+    var col = r.obj.cols[+t.dataset.col];
+    if (col) { col.name = t.value; commit(false); }
+    return;
+  }
   if (t.dataset.k) {
     r.obj[t.dataset.k] = t.value;
     commit(false);
@@ -2355,6 +2937,17 @@ insp.addEventListener('input', function(e){
 insp.addEventListener('change', function(e){
   var t = e.target;
   var r = sel();
+  if (r && t.dataset.colKind !== undefined) {
+    var col = r.obj.cols[+t.dataset.colKind];
+    if (!col) return;
+    /* название и группа — по одной на таблицу: прежнюю переводим в поле */
+    if (t.value === 'title' || t.value === 'group') {
+      r.obj.cols.forEach(function(c){ if (c !== col && c.kind === t.value) c.kind = 'field'; });
+    }
+    col.kind = t.value;
+    commit(true);
+    return;
+  }
   if (!r || !t.dataset.k) return;
   if (t.type === 'checkbox') r.obj[t.dataset.k] = t.checked;
   else if (t.tagName === 'SELECT') r.obj[t.dataset.k] = t.value;
@@ -2387,6 +2980,12 @@ function fileFromClipboard(dt){
 }
 
 insp.addEventListener('paste', function(e){
+  if (e.target.closest('[data-paste-table]')) {
+    e.preventDefault();
+    var rt = sel();
+    if (rt && rt.kind === 'section' && rt.obj.type === 'table') pasteTable(rt.obj, e.clipboardData);
+    return;
+  }
   var field = e.target.closest('[data-img-field]');
   if (!field) return;
   var f = fileFromClipboard(e.clipboardData);
@@ -2395,7 +2994,14 @@ insp.addEventListener('paste', function(e){
   embedInto(field, f);
 });
 
+/* В поле вставки ничего не печатается — оно только принимает Ctrl+V */
+insp.addEventListener('beforeinput', function(e){
+  if (e.target.closest && e.target.closest('[data-paste-table]')) e.preventDefault();
+});
+
 insp.addEventListener('dragover', function(e){
+  var pz = e.target.closest('[data-paste-table]');
+  if (pz) { e.preventDefault(); pz.classList.add('drop-on'); return; }
   var field = e.target.closest('[data-img-field]');
   if (!field) return;
   e.preventDefault();
@@ -2406,6 +3012,14 @@ insp.addEventListener('dragleave', function(e){
   if (field && !field.contains(e.relatedTarget)) field.classList.remove('drop-on');
 });
 insp.addEventListener('drop', function(e){
+  var pz = e.target.closest('[data-paste-table]');
+  if (pz) {
+    e.preventDefault();
+    pz.classList.remove('drop-on');
+    var rd = sel();
+    if (rd && rd.kind === 'section' && rd.obj.type === 'table') pasteTable(rd.obj, e.dataTransfer);
+    return;
+  }
   var field = e.target.closest('[data-img-field]');
   if (!field) return;
   e.preventDefault();
@@ -2429,6 +3043,13 @@ insp.addEventListener('input', function(e){
 
 insp.addEventListener('click', function(e){
   var seg = e.target.closest('[data-seg]');
+  if (seg && seg.dataset.seg === '__pasteMode') {
+    pasteMode = seg.dataset.segVal;
+    renderInspector();
+    var pz = insp.querySelector('[data-paste-table]');
+    if (pz) pz.focus();
+    return;
+  }
   if (seg) {
     var rs = sel();
     if (!rs) return;
@@ -2481,6 +3102,19 @@ insp.addEventListener('click', function(e){
   var act = e.target.closest('[data-act]');
   if (act) { doAct(selId, act.dataset.act); return; }
 
+  var cact = e.target.closest('[data-col-act]');
+  if (cact) {
+    var cols = r.obj.cols, ci = +cact.dataset.colI;
+    if (cact.dataset.colAct === 'up' && ci > 0) cols.splice(ci - 1, 0, cols.splice(ci, 1)[0]);
+    else if (cact.dataset.colAct === 'down' && ci < cols.length - 1) cols.splice(ci + 1, 0, cols.splice(ci, 1)[0]);
+    else if (cact.dataset.colAct === 'del') {
+      var gone = cols.splice(ci, 1)[0];
+      r.obj.rows.forEach(function(rw){ delete rw.c[gone.id]; });
+    } else return;
+    commit(true);
+    return;
+  }
+
   var del = e.target.closest('[data-stat-del]');
   if (del) { model.hero.stats.splice(+del.dataset.statDel, 1); commit(true); return; }
 
@@ -2502,6 +3136,19 @@ insp.addEventListener('click', function(e){
     var g = newGroup('Новая группа');
     r.obj.groups.push(g);
     selId = 'g:' + g.id;
+  } else if (add.dataset.add === 'col') {
+    r.obj.cols.push(newCol('Колонка ' + (r.obj.cols.length + 1), 'field'));
+  } else if (add.dataset.add === 'row') {
+    var nr = newRow();
+    r.obj.rows.push(nr);
+    selId = 'r:' + nr.id;
+  } else if (add.dataset.add === 'row-after') {
+    var na = newRow();
+    var L = tableLayout(r.section);
+    /* новая строка остаётся в той же группе */
+    if (L.group) na.c[L.group.id] = { t: cellOf(r.obj, L.group.id).t, h:'' };
+    r.arr.splice(r.idx + 1, 0, na);
+    selId = 'r:' + na.id;
   } else if (add.dataset.add === 'person') {
     var p = newPerson();
     r.obj.people.push(p);
@@ -2509,6 +3156,198 @@ insp.addEventListener('click', function(e){
   }
   commit(true);
 });
+
+
+/* ═══════════════════════════════════════════════════
+   9b. ВСТАВКА ТАБЛИЦЫ ИЗ БУФЕРА
+   Google Таблицы, Excel и Confluence кладут в буфер HTML
+   с <table> — оттуда берём и текст, и ссылки. Нет HTML —
+   читаем текст, разделённый табами.
+   ═══════════════════════════════════════════════════ */
+
+var pasteMode = 'replace';
+
+/** Ссылка из ячейки; редирект Google разворачиваем до настоящего адреса. */
+function cleanHref(h){
+  h = String(h || '').trim();
+  var g = h.match(/^https?:\/\/(?:www\.)?google\.[a-z.]+\/url\?(?:.*&)?q=([^&]+)/i);
+  if (g) { try { h = decodeURIComponent(g[1]); } catch (e) {} }
+  return /^(https?:|mailto:)/i.test(h) ? h : '';
+}
+function bareUrl(t){ return /^https?:\/\/\S+$/i.test(t) ? t : ''; }
+
+function cellFromTd(td){
+  var c = td.cloneNode(true);
+  c.querySelectorAll('style, script').forEach(function(x){ x.remove(); });
+  c.querySelectorAll('br').forEach(function(b){ b.replaceWith('\n'); });
+  c.querySelectorAll('p, div, li').forEach(function(b){ b.append('\n'); });
+  var t = c.textContent.replace(/[ \t ]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{2,}/g, '\n').trim();
+  var a = td.querySelector('a[href]');
+  var h = a ? cleanHref(a.getAttribute('href')) : '';
+  return { t:t, h:h || bareUrl(t) };
+}
+
+function gridFromHtml(html){
+  var doc = new DOMParser().parseFromString(html, 'text/html');
+  var tbl = doc.querySelector('table');
+  if (!tbl) return null;
+  var grid = [];
+  [].forEach.call(tbl.rows, function(tr, ri){
+    grid[ri] = grid[ri] || [];
+    var ci = 0;
+    [].forEach.call(tr.cells, function(td){
+      while (grid[ri][ci]) ci++;
+      var cell = cellFromTd(td);
+      var rs = Math.max(1, +td.getAttribute('rowspan') || 1);
+      var cs = Math.max(1, +td.getAttribute('colspan') || 1);
+      for (var y = 0; y < rs; y++) {
+        grid[ri + y] = grid[ri + y] || [];
+        for (var x = 0; x < cs; x++) {
+          /* объединённую по вертикали ячейку повторяем вниз: так
+             «Отдел» на четыре строки становится группой у каждой */
+          grid[ri + y][ci + x] = !y && !x ? cell
+            : !x ? { t:cell.t, h:cell.h, merged:true }
+            : { t:'', h:'' };
+        }
+      }
+      ci += cs;
+    });
+  });
+  return grid;
+}
+
+function gridFromTsv(text){
+  var src = String(text || '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+  if (src.indexOf('\t') < 0) return null;
+  var rows = [], row = [], cell = '', q = false;
+  for (var i = 0; i < src.length; i++) {
+    var ch = src[i];
+    if (q) {
+      if (ch === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += ch;
+    }
+    else if (ch === '"' && cell === '') q = true;
+    else if (ch === '\t') { row.push(cell); cell = ''; }
+    else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  row.push(cell); rows.push(row);
+  return rows.map(function(r){
+    return r.map(function(t){ t = t.trim(); return { t:t, h:bareUrl(t) }; });
+  });
+}
+
+function gridFromClipboard(dt){
+  if (!dt) return null;
+  var html = dt.getData('text/html'), text = dt.getData('text/plain');
+  var grid = (html && /<table/i.test(html)) ? gridFromHtml(html) : null;
+  if (!grid || !grid.length) grid = gridFromTsv(text);
+  if (!grid) return null;
+  var w = 0;
+  grid.forEach(function(r){ w = Math.max(w, r.length); });
+  grid = grid.map(function(r){
+    var out = [];
+    for (var j = 0; j < w; j++) out.push(r[j] || { t:'', h:'' });
+    return out;
+  });
+  return grid.filter(function(r){ return r.some(function(c){ return c.t || c.h; }); });
+}
+
+var RE_NUM   = /^(№|#|n|no\.?|nr|номер|№\s*п\/п|п\/п)$/i;
+var RE_GROUP = /отдел|направлен|групп|раздел|категор|подразд|department|group|team$/i;
+var RE_TITLE = /назван|документ|таблиц|ссылк|ресурс|name|title|link/i;
+var RE_TAGS  = /кто|для кого|ответствен|роль|роли|исполн|владел|заполня|аудитор|owner|role|who/i;
+
+/** Угадывает тип каждой колонки по заголовку и содержимому. */
+function guessTable(grid){
+  var head = grid[0], body = grid.slice(1);
+  var keep = [];
+  head.forEach(function(hc, j){
+    var name = String(hc.t || '').replace(/\s+/g, ' ').trim();
+    var vals = body.map(function(r){ return r[j]; });
+    var filled = vals.filter(function(v){ return v.t || v.h; });
+    if (!name && !filled.length) return;
+    var numeric = filled.length > 1 && filled.every(function(v){ return /^\d{1,4}\.?$/.test(v.t); });
+    if (RE_NUM.test(name) || (numeric && name.length < 4)) return;   /* нумерацию строк не переносим */
+    var n = filled.length || 1, distinct = {}, len = 0, links = 0, plus = 0, merged = false;
+    filled.forEach(function(v){
+      distinct['k' + v.t] = 1; len += v.t.length;
+      if (v.h) links++;
+      if (/\s\+\s|\n/.test(v.t)) plus++;
+      if (v.merged) merged = true;
+    });
+    keep.push({ j:j, name: name || ('Колонка ' + (j + 1)), kind:null,
+                links: links / n, avg: len / n, plus: plus / n, merged: merged,
+                distinct: Object.keys(distinct).length, total: filled.length });
+  });
+
+  var repeats = function(k){ return k.distinct < k.total; };
+  var g = keep.filter(function(k){ return RE_GROUP.test(k.name) && repeats(k) && k.avg < 60; })[0] ||
+          keep.filter(function(k){ return k.merged && repeats(k) && k.avg < 40; })[0];
+  if (g) g.kind = 'group';
+  var free = function(k){ return !k.kind; };
+  var t = keep.filter(function(k){ return free(k) && k.links >= .5; })[0] ||
+          keep.filter(function(k){ return free(k) && RE_TITLE.test(k.name); })[0] ||
+          keep.filter(free)[0];
+  if (t) t.kind = 'title';
+  keep.forEach(function(k){
+    if (k.kind) return;
+    k.kind = (RE_TAGS.test(k.name) || k.plus >= .3) ? 'tags' : k.avg > 50 ? 'text' : 'field';
+  });
+
+  var cols = keep.map(function(k){ return newCol(k.name, k.kind); });
+  var rows = body.map(function(r){
+    var row = newRow();
+    keep.forEach(function(k, i){
+      var v = r[k.j];
+      if (v && (v.t || v.h)) row.c[cols[i].id] = { t:v.t, h:v.h };
+    });
+    return row;
+  });
+  return { cols:cols, rows:rows };
+}
+
+function pasteTable(sec, dt){
+  var grid = gridFromClipboard(dt);
+  if (!grid || !grid.length) {
+    toast('В буфере нет таблицы — скопируйте диапазон ячеек целиком');
+    return;
+  }
+
+  if (pasteMode === 'append' && sec.cols.length) {
+    /* шапку, совпавшую с названиями колонок, пропускаем */
+    var names = sec.cols.map(function(c){ return c.name.trim().toLowerCase(); });
+    var same = grid[0].filter(function(c, j){ return names[j] && c.t.trim().toLowerCase() === names[j]; }).length;
+    if (same >= Math.max(1, Math.ceil(names.length / 2))) grid = grid.slice(1);
+    grid.forEach(function(r){
+      var row = newRow();
+      sec.cols.forEach(function(c, j){
+        var v = r[j];
+        if (v && (v.t || v.h)) row.c[c.id] = { t:v.t, h:v.h };
+      });
+      sec.rows.push(row);
+    });
+    selId = 's:' + sec.id;
+    commit(true);
+    toast('Добавлено строк: ' + grid.length);
+    return;
+  }
+
+  if (grid.length < 2) {
+    toast('Нужны хотя бы две строки: заголовки и данные');
+    return;
+  }
+  var built = guessTable(grid);
+  sec.cols = built.cols;
+  sec.rows = built.rows;
+  selId = 's:' + sec.id;
+  commit(true);
+  var links = 0;
+  built.rows.forEach(function(r){ Object.keys(r.c).forEach(function(k){ if (r.c[k].h) links++; }); });
+  toast('Вставлено: ' + plural(built.rows.length, 'строка', 'строки', 'строк') + ', ' +
+        plural(built.cols.length, 'колонка', 'колонки', 'колонок') +
+        (links ? ', ' + plural(links, 'ссылка', 'ссылки', 'ссылок') : '') + '. Отменить — Ctrl+Z');
+}
 
 
 /* ═══════════════════════════════════════════════════
@@ -2616,6 +3455,12 @@ function normalize(m){
         if (!c.id) c.id = uid('c');
         if (c.note === undefined) c.note = 'Чат доступен для ограниченного круга сотрудников';
       });
+    } else if (s.type === 'table') {
+      s.cols = s.cols || [];
+      s.rows = s.rows || [];
+      s.view = s.view === 'table' ? 'table' : 'cards';
+      s.cols.forEach(function(c){ if (!c.id) c.id = uid('k'); if (!c.kind) c.kind = 'field'; });
+      s.rows.forEach(function(r){ if (!r.id) r.id = uid('r'); r.c = r.c || {}; });
     } else {
       s.type = 'contacts';
       s.groups = s.groups || [];
@@ -2711,6 +3556,19 @@ function buildMarkdown(m){
         out.push('- ' + nm + (tail ? ' — ' + tail : ''));
         if (c.desc) out.push('  ' + c.desc);
       });
+    } else if (sec.type === 'table') {
+      var vc = (sec.cols || []).filter(function(c){ return c.kind !== 'hidden'; });
+      var md = function(v){ return String(v || '').replace(/\|/g, '\\|').replace(/\n/g, '<br>'); };
+      if (vc.length) {
+        out.push('| ' + vc.map(function(c){ return md(c.name); }).join(' | ') + ' |');
+        out.push('|' + vc.map(function(){ return ' --- '; }).join('|') + '|');
+        (sec.rows || []).forEach(function(r){
+          out.push('| ' + vc.map(function(c){
+            var x = cellOf(r, c.id);
+            return x.h ? '[' + (md(x.t) || x.h) + '](' + x.h + ')' : md(x.t);
+          }).join(' | ') + ' |');
+        });
+      }
     } else if (sec.type === 'tiles') {
       (sec.tiles || []).forEach(function(t){
         var b = badges[t.badge] || badges.article;
@@ -3037,6 +3895,11 @@ function parseHubHtml(html){
   });
 
   if (!out.sections.length) throw new Error('не нашёл ни одной секции');
+
+  /* сворачиваемость — по классу обёртки секции */
+  var shut = {};
+  doc.querySelectorAll('.is-collapsible .section-title').forEach(function(t){ shut[txt(t)] = 1; });
+  out.sections.forEach(function(s){ if (shut[s.title]) s.collapsible = true; });
 
   /* бейджи, встреченные в разметке, но не объявленные в скрипте */
   out.sections.forEach(function(s){
@@ -3389,6 +4252,27 @@ $('add-chats').addEventListener('click', function(){
   selId = 's:' + s.id;
   commit(true);
 });
+$('add-table').addEventListener('click', function(){
+  var s = newTableSection();
+  s.accent = ACCENTS[model.sections.length % ACCENTS.length];
+  model.sections.push(s);
+  selId = 's:' + s.id;
+  commit(true);
+  toast('Секция-таблица добавлена — вставьте таблицу через Ctrl+V');
+});
+
+/* Ctrl+V при выбранной таблице (или её строке) работает и без
+   клика в поле вставки — если курсор не стоит в другом поле. */
+document.addEventListener('paste', function(e){
+  var t = e.target;
+  if (t && (t.closest('input, textarea, select, [contenteditable="true"]') || t.closest('.ov.on'))) return;
+  var r = sel();
+  var sec = r && (r.kind === 'section' ? r.obj : r.kind === 'row' ? r.section : null);
+  if (!sec || sec.type !== 'table') return;
+  e.preventDefault();
+  pasteTable(sec, e.clipboardData);
+});
+
 $('add-contacts').addEventListener('click', function(){
   var s = newContactsSection();
   model.sections.push(s);
@@ -3618,6 +4502,31 @@ var HELP = [
       '<li><b>Ширина плиток</b> — по умолчанию 320px: у чатов описание длиннее, чем у обычных плиток.</li>' +
     '</ul>' +
     '<div class="note"><p>Бейджи чатов живут отдельно от бейджей типов контента: «Канал» — это про площадку, а «Статья» или «Таблица» — про содержимое. Смешивать их в одном списке было бы неудобно.</p></div>' },
+
+  { id:'table', name:'Таблица', html:
+    '<h4>Секция-таблица</h4>' +
+    '<p>Реестр документов, ответственных, ссылок — всё, что раньше жило таблицей в Confluence. Наполняется вставкой: скопируйте диапазон в <b>Google Таблицах</b>, <b>Excel</b> или таблицу на странице <b>Confluence</b>, выберите секцию и нажмите <code>Ctrl+V</code>.</p>' +
+    '<ul>' +
+      '<li>Первая строка становится заголовками колонок.</li>' +
+      '<li>Ссылки, вшитые в ячейки, сохраняются. Голый адрес в тексте тоже станет ссылкой.</li>' +
+      '<li>Объединённые ячейки (например, «Отдел» на несколько строк) разворачиваются на каждую строку.</li>' +
+      '<li>Колонка с нумерацией «№» отбрасывается.</li>' +
+      '<li>Режим «Добавить строки» дописывает данные в конец по порядку колонок, не трогая настройки.</li>' +
+    '</ul>' +
+    '<h5>Типы колонок</h5>' +
+    '<p>Конструктор угадывает их сам, но любой можно поменять — от типа зависит только вид.</p>' +
+    '<ul>' +
+      '<li><b>Название</b> — заголовок карточки. Со ссылкой получает иконку и подпись типа: Google Таблица, Документ, Форма, Confluence.</li>' +
+      '<li><b>Группа</b> — делит строки на блоки со счётчиком. Одна на таблицу.</li>' +
+      '<li><b>Описание</b> — основной текст карточки.</li>' +
+      '<li><b>Метки</b> — роли и теги плашками, разделитель «+».</li>' +
+      '<li><b>Поле</b> — подпись и значение в правой части карточки.</li>' +
+      '<li><b>Скрыть</b> — данные остаются в хабе, но на странице не видны.</li>' +
+    '</ul>' +
+    '<h5>Вид и правка</h5>' +
+    '<p><b>Карточки</b> лучше читаются с длинными описаниями, <b>Таблица</b> — когда колонок много и они короткие. Поиск с фильтром по группам включается галочкой. Отдельную строку правьте по клику в дереве или в превью: у каждой ячейки есть текст и необязательная ссылка.</p>' +
+    '<h5>Сворачивание</h5>' +
+    '<p>Галочка <b>«Сворачиваемый блок»</b> есть у секций любого типа. На опубликованной странице такая секция открывается свёрнутой, а в заголовке видно, что внутри: число записей и группы. В превью конструктора она развёрнута, чтобы её можно было править.</p>' },
 
   { id:'contacts', name:'Контакты', html:
     '<h4>Контакты</h4>' +
