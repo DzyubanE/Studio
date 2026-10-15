@@ -135,6 +135,11 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
 /* connect banner */
 .conn-banner{position:fixed;top:58px;left:50%;transform:translateX(-50%);background:#fffbeb;border:1px solid #f59e0b;border-radius:20px;padding:7px 18px;font-size:12.5px;font-weight:600;color:#92400e;z-index:200;display:none;gap:10px;align-items:center;box-shadow:0 4px 20px rgba(0,0,0,.1)}
 .conn-banner.show{display:flex}
+.conn-both{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;cursor:pointer;user-select:none}
+.conn-both input{accent-color:#f59e0b;cursor:pointer}
+.conn-dir{width:24px;height:24px;border-radius:6px;border:1px solid var(--b2);background:var(--surface);color:var(--t2);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;transition:background .12s}
+.conn-dir:hover{background:var(--s2)}
+.conn-dir.on{border-color:var(--accent);background:rgba(59,130,246,.12);color:var(--accent)}
 
 /* zoom controls */
 .zoom-ctrl{position:fixed;top:68px;right:16px;z-index:100;display:flex;flex-direction:column;gap:4px}
@@ -375,7 +380,7 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
 <div class="body">
 <div class="sb">
   <div class="sb-head" id="sb-head">Свойства</div>
-  <div class="sb-scroll" id="sb-body"><div class="sb-empty">Нажмите <b>+ Блок</b> чтобы добавить карточку, затем кликните на неё для редактирования.<br><br>Shift+клик — выбор нескольких.</div></div>
+  <div class="sb-scroll" id="sb-body"><div class="sb-empty">Нажмите <b>+ Блок</b> чтобы добавить карточку, затем кликните на неё для редактирования.<br><br>Shift+клик — выбор нескольких.<br>Ctrl+C / Ctrl+V — копировать и вставить блоки.</div></div>
 </div>
 <div class="cv-wrap" id="cv-wrap">
   <div id="sel-box"></div>
@@ -391,6 +396,7 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
 
 <div class="conn-banner" id="conn-banner">
   <span id="conn-text">Кликните на источник</span>
+  <label class="conn-both" title="Стрелки на обоих концах новой связи"><input type="checkbox" id="conn-both" onchange="connBoth=this.checked"> ↔ Двусторонняя</label>
   <button class="btn" onclick="toggleConn()">Отмена</button>
 </div>
 
@@ -449,7 +455,7 @@ let nodes = {};
 let conns = [];
 let selId = null;
 let multiSel = new Set();
-let connMode = false, connFrom = null;
+let connMode = false, connFrom = null, connBoth = false;
 let connLineColor = '#8b8b8b';
 let nc = 0;
 let vx = 0, vy = 0, zoom = 1;
@@ -909,7 +915,7 @@ function renderSidebar(id) {
     return `<div class="emp-item"><div class="av-btn" id="av-${id}-${i}" onclick="pickAv('${id}',${i})" title="Выбрать файл на компьютере">${av?`<img src="${esc(av)}">`:'📷'}</div><input type="text" value="${esc(e.name||'')}" placeholder="Имя" oninput="setEN('${id}',${i},this.value)"><input type="text" value="${esc(e.reddy||'')}" style="width:76px" placeholder="ID Reddy" oninput="setER('${id}',${i},this.value)"><div class="xb" onclick="remEmp('${id}',${i})">×</div></div>`
       + `<div class="av-row">${avField}<button class="btn" style="padding:4px 8px;font-size:11px" onclick="pickAv('${id}',${i})">Файл</button>${av?`<div class="xb" onclick="clearAv('${id}',${i})" title="Убрать аватар">×</div>`:''}</div>`;
   }).join('');
-  const cConns=conns.map((c,i)=>{if(c.from!==id&&c.to!==id)return'';const out=c.from===id;const other=nodes[out?c.to:c.from];return`<div class="conn-chip"><span class="lbl">${out?'→':'←'} ${esc(other?.role||'')}</span><div class="xb" style="font-size:13px" onclick="removeConn(${i})">×</div></div>`;}).join('');
+  const cConns=conns.map((c,i)=>{if(c.from!==id&&c.to!==id)return'';const out=c.from===id;const other=nodes[out?c.to:c.from];return`<div class="conn-chip"><span class="lbl">${c.both?'↔':out?'→':'←'} ${esc(other?.role||'')}</span><div class="conn-dir ${c.both?'on':''}" title="${c.both?'Сделать односторонней':'Сделать двусторонней'}" onclick="toggleConnBoth(${i})">⇄</div><div class="xb" style="font-size:13px" onclick="removeConn(${i})">×</div></div>`;}).join('');
   const isGroup = d.kind === 'group';
   /* У группы своя половина полей: описание вместо обязанностей,
      ни графика, ни сотрудников — так же, как на готовой странице. */
@@ -1008,15 +1014,37 @@ function toggleConn(){connMode=!connMode;connFrom=null;document.getElementById('
 function handleConn(id){
   if(!connFrom){connFrom=id;document.getElementById(id)?.classList.add('conn-src');document.getElementById('conn-text').textContent='Теперь кликните на цель';document.querySelectorAll(`.onode:not(#${id})`).forEach(n=>n.classList.add('conn-tgt-ok'));}
   else if(connFrom!==id){
-    if(!conns.some(c=>c.from===connFrom&&c.to===id)){conns.push({from:connFrom,to:id,color:connLineColor});toast('Связь добавлена');snapshot();}
-    else toast('Связь уже существует');
+    const rev=conns.find(c=>c.from===id&&c.to===connFrom);
+    if(conns.some(c=>c.from===connFrom&&c.to===id))toast('Связь уже существует');
+    /* Обратная связь уже есть — второй линии поверх не рисуем,
+       а делаем существующую двусторонней. */
+    else if(rev){if(rev.both)toast('Связь уже существует');else{rev.both=true;toast('Связь стала двусторонней');snapshot();}}
+    else{const c={from:connFrom,to:id,color:connLineColor};if(connBoth)c.both=true;conns.push(c);toast(connBoth?'Двусторонняя связь добавлена':'Связь добавлена');snapshot();}
     document.getElementById(connFrom)?.classList.remove('conn-src');document.querySelectorAll('.onode').forEach(n=>n.classList.remove('conn-tgt-ok'));connFrom=null;document.getElementById('conn-text').textContent='Кликните на источник';drawLines();if(selId)renderSidebar(selId);
   }
 }
 function removeConn(i){conns.splice(i,1);drawLines();if(selId)renderSidebar(selId);snapshot();}
+function toggleConnBoth(i){const c=conns[i];if(!c)return;if(c.both)delete c.both;else c.both=true;drawLines();if(selId)renderSidebar(selId);snapshot();}
 
 // ═══════════════════════════ SVG LINES ═══════════════════════
-function nodeBox(id){const d=nodes[id];const el=document.getElementById(id);if(!d||!el)return null;const sz=nodeSize(id);return{cx:d.x+sz.w/2,top:d.y,bot:d.y+sz.h};}
+function nodeBox(id){const d=nodes[id];const el=document.getElementById(id);if(!d||!el)return null;const sz=nodeSize(id);return{cx:d.x+sz.w/2,l:d.x,r:d.x+sz.w,top:d.y,bot:d.y+sz.h};}
+/** Геометрия линии. Блоки на одном уровне (по высоте перекрываются) —
+    прямая горизонталь между боковыми гранями; иначе — кривая от нижней
+    грани верхнего блока к верхней грани нижнего, прямая, если блоки
+    стоят строго друг под другом. Та же функция живёт в экспорте,
+    view.html и hub.html — линии везде одинаковые. */
+function connGeom(p,ch){
+  var t=Math.max(p.top,ch.top),b=Math.min(p.bot,ch.bot);
+  if(b>t){
+    var y=Math.round((t+b)/2),ltr=p.cx<=ch.cx;
+    var x1=ltr?p.r:p.l,x2=ltr?ch.l:ch.r;
+    return{d:'M'+x1+','+y+' L'+x2+','+y,x1:x1,y1:y,x2:x2,y2:y};
+  }
+  var down=ch.top>=p.bot,y1=down?p.bot:p.top,y2=down?ch.top:ch.bot;
+  if(Math.abs(p.cx-ch.cx)<1)return{d:'M'+p.cx+','+y1+' L'+p.cx+','+y2,x1:p.cx,y1:y1,x2:p.cx,y2:y2};
+  var m=(y1+y2)/2;
+  return{d:'M'+p.cx+','+y1+' C'+p.cx+','+m+' '+ch.cx+','+m+' '+ch.cx+','+y2,x1:p.cx,y1:y1,x2:ch.cx,y2:y2};
+}
 function drawLines(){
   const svg=document.getElementById('svg-lines');
   const ns=Object.values(nodes);
@@ -1038,17 +1066,18 @@ function drawLines(){
   conns.forEach(c=>{
     const k=c.from+'>'+c.to;if(seen.has(k))return;seen.add(k);
     const p=nodeBox(c.from),ch=nodeBox(c.to);if(!p||!ch)return;
-    const my2=(p.bot+ch.top)/2;
+    const g=connGeom(p,ch);
     const isA=actSet.has(k);
     if(isA){
       const sc=nodes[c.from]?.color||'#3b82f6',tc=nodes[c.to]?.color||'#3b82f6';
       const gid='g'+gi++;
-      defs+=`<linearGradient id="${gid}" x1="${p.cx}" y1="${p.bot}" x2="${ch.cx}" y2="${ch.top}" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${sc}"/><stop offset="100%" stop-color="${tc}"/></linearGradient>`;
+      defs+=`<linearGradient id="${gid}" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${sc}"/><stop offset="100%" stop-color="${tc}"/></linearGradient>`;
       defs+=`<marker id="ah-${gid}" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="${tc}"/></marker>`;
-      paths+=`<path d="M${p.cx},${p.bot} C${p.cx},${my2} ${ch.cx},${my2} ${ch.cx},${ch.top}" fill="none" stroke="url(#${gid})" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-${gid})"/>`;
+      if(c.both)defs+=`<marker id="ahs-${gid}" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="${sc}"/></marker>`;
+      paths+=`<path d="${g.d}" fill="none" stroke="url(#${gid})" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-${gid})"${c.both?` marker-start="url(#ahs-${gid})"`:''}/>`;
     } else {
       const st=c.color||defStroke;
-      paths+=`<path d="M${p.cx},${p.bot} C${p.cx},${my2} ${ch.cx},${my2} ${ch.cx},${ch.top}" fill="none" stroke="${st}" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>`;
+      paths+=`<path d="${g.d}" fill="none" stroke="${st}" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"${c.both?' marker-start="url(#ah)"':''}/>`;
     }
   });
   svg.innerHTML=defs+'</defs>'+paths;
@@ -1063,6 +1092,59 @@ function deleteSelected(){
   deselect();drawLines();snapshot();
 }
 
+// ═══════════════════════════ COPY / PASTE ════════════════════
+/* Буфер — в localStorage: блоки переносятся и между схемами (в другой
+   вкладке или после перехода через «Мои схемы»). Копируются выбранные
+   блоки и связи между ними; связи с невыбранными блоками остаются. */
+const CLIP_KEY = 'studio.charts.clipboard';
+let clipMem = null, clipSrc = '', pasteN = 0;
+function selIds() { return multiSel.size ? [...multiSel].filter(id => nodes[id]) : (selId && nodes[selId] ? [selId] : []); }
+function copySel() {
+  const ids = selIds(); if (!ids.length) return false;
+  const set = new Set(ids);
+  const data = { studioCharts: 1,
+    nodes: ids.map(id => JSON.parse(JSON.stringify(nodes[id]))),
+    conns: conns.filter(c => set.has(c.from) && set.has(c.to)).map(c => ({ ...c })) };
+  clipMem = JSON.stringify(data); clipSrc = clipMem; pasteN = 0;
+  try { localStorage.setItem(CLIP_KEY, clipMem); } catch (e) {}
+  toast(ids.length === 1 ? 'Блок скопирован' : 'Скопировано блоков: ' + ids.length);
+  return true;
+}
+function pasteClip() {
+  let raw = null;
+  try { raw = localStorage.getItem(CLIP_KEY); } catch (e) {}
+  raw = raw || clipMem;
+  let data; try { data = JSON.parse(raw); } catch (e) { return false; }
+  if (!data || !Array.isArray(data.nodes) || !data.nodes.length) return false;
+  if (raw !== clipSrc) { clipSrc = raw; pasteN = 0; }
+  pasteN++;
+  /* Копия из этой же схемы ложится лесенкой со сдвигом от оригинала;
+     из другой схемы — в центр экрана. */
+  let dx = 30 * pasteN, dy = 30 * pasteN;
+  if (!data.nodes.some(n => nodes[n.id])) {
+    const r = cvWrap.getBoundingClientRect();
+    const cx = (-vx + r.width / 2) / zoom, cy = (-vy + r.height / 2) / zoom;
+    const minX = Math.min(...data.nodes.map(n => n.x)), maxX = Math.max(...data.nodes.map(n => n.x + NW));
+    const minY = Math.min(...data.nodes.map(n => n.y)), maxY = Math.max(...data.nodes.map(n => n.y + NH));
+    dx = Math.round(cx - (minX + maxX) / 2) + 30 * (pasteN - 1);
+    dy = Math.round(cy - (minY + maxY) / 2) + 30 * (pasteN - 1);
+  }
+  const map = {};
+  data.nodes.forEach(n => {
+    const id = uid(); map[n.id] = id;
+    nodes[id] = normNode({ ...n, id, x: Math.round((+n.x || 0) + dx), y: Math.round((+n.y || 0) + dy) });
+    renderNode(id);
+  });
+  (data.conns || []).forEach(c => { if (map[c.from] && map[c.to]) conns.push({ ...c, from: map[c.from], to: map[c.to] }); });
+  const ids = Object.values(map);
+  clearMulti();
+  if (ids.length === 1) select(ids[0]);
+  else { deselect(); ids.forEach(addMulti); updateMultiSidebar(); }
+  drawLines(); snapshot();
+  toast(ids.length === 1 ? 'Блок вставлен' : 'Вставлено блоков: ' + ids.length);
+  return true;
+}
+
 // ═══════════════════════════ KEYBOARD ════════════════════════
 document.addEventListener('keydown',e=>{
   if(e.code==='Space'&&!e.target.matches('input,textarea')){spaceDown=true;cvWrap.style.cursor='grab';e.preventDefault();}
@@ -1070,6 +1152,11 @@ document.addEventListener('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&!e.target.matches('input,textarea')){deleteSelected();}
   if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
   if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))){e.preventDefault();redo();}
+  /* По e.code, а не e.key: в русской раскладке e.key — «с» и «м». */
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&(e.code==='KeyC'||e.code==='KeyV')&&!e.target.matches('input,textarea,select,[contenteditable]')&&!document.querySelector('.modal-ov.open')){
+    if(e.code==='KeyC'){const s=window.getSelection();if(s&&String(s))return;if(copySel())e.preventDefault();}
+    else if(pasteClip())e.preventDefault();
+  }
 });
 document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;cvWrap.style.cursor='';}});
 cvWrap.addEventListener('click',e=>{if(e.target===cvWrap||e.target===world){clearMulti();deselect();}});
@@ -1450,7 +1537,8 @@ function posDP(id){
 function closeDP(){document.getElementById('dp').classList.remove('open');document.querySelectorAll('.onode.active').forEach(function(n){n.classList.remove('active');});activeId=null;drawLines();}
 document.getElementById('body').addEventListener('click',function(e){if(!e.target.closest('.onode')&&!e.target.closest('.dp'))closeDP();});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDP();});
-function nbox(id){var d=NODES.find(function(n){return n.id===id});var el=document.getElementById(id);if(!el||!d)return null;return{cx:d.x+el.offsetWidth/2,top:d.y,bot:d.y+el.offsetHeight};}
+function nbox(id){var d=NODES.find(function(n){return n.id===id});var el=document.getElementById(id);if(!el||!d)return null;return{cx:d.x+el.offsetWidth/2,l:d.x,r:d.x+el.offsetWidth,top:d.y,bot:d.y+el.offsetHeight};}
+${connGeom.toString()}
 function drawLines(){
   var svg=document.getElementById('svg-lines');var stage=document.getElementById('stage');
   svg.setAttribute('width',stage.offsetWidth);svg.setAttribute('height',stage.offsetHeight);
@@ -1462,17 +1550,18 @@ function drawLines(){
   CONNS.forEach(function(c){
     var k=c.from+'>'+c.to;if(seen.has(k))return;seen.add(k);
     var p=nbox(c.from),ch=nbox(c.to);if(!p||!ch)return;
-    var my=(p.bot+ch.top)/2;var isA=aSet.has(k);
+    var g=connGeom(p,ch);var isA=aSet.has(k);
     if(isA){
       var sc=esc(NODES.find(function(n){return n.id===c.from})?.color||'#3b82f6');
       var tc=esc(NODES.find(function(n){return n.id===c.to})?.color||'#3b82f6');
       var gid='g'+gi++;
-      defs+='<linearGradient id="'+gid+'" x1="'+p.cx+'" y1="'+p.bot+'" x2="'+ch.cx+'" y2="'+ch.top+'" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="'+sc+'"/><stop offset="100%" stop-color="'+tc+'"/></linearGradient>';
+      defs+='<linearGradient id="'+gid+'" x1="'+g.x1+'" y1="'+g.y1+'" x2="'+g.x2+'" y2="'+g.y2+'" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="'+sc+'"/><stop offset="100%" stop-color="'+tc+'"/></linearGradient>';
       defs+='<marker id="ah-'+gid+'" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="'+tc+'"/></marker>';
-      paths+='<path d="M'+p.cx+','+p.bot+' C'+p.cx+','+my+' '+ch.cx+','+my+' '+ch.cx+','+ch.top+'" fill="none" stroke="url(#'+gid+')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-'+gid+')"/>';
+      if(c.both)defs+='<marker id="ahs-'+gid+'" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="'+sc+'"/></marker>';
+      paths+='<path d="'+g.d+'" fill="none" stroke="url(#'+gid+')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-'+gid+')"'+(c.both?' marker-start="url(#ahs-'+gid+')"':'')+'/>';
     } else {
       var st=esc(c.color||defSt);
-      paths+='<path d="M'+p.cx+','+p.bot+' C'+p.cx+','+my+' '+ch.cx+','+my+' '+ch.cx+','+ch.top+'" fill="none" stroke="'+st+'" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"/>';
+      paths+='<path d="'+g.d+'" fill="none" stroke="'+st+'" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"'+(c.both?' marker-start="url(#ah)"':'')+'/>';
     }
   });
   svg.innerHTML=defs+'</defs>'+paths;

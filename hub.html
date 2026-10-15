@@ -3341,7 +3341,22 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     function nbox(id){
       var el = elById[id];
       if (!el) return null;
-      return { cx: el.offsetLeft + el.offsetWidth / 2, top: el.offsetTop, bot: el.offsetTop + el.offsetHeight };
+      return { cx: el.offsetLeft + el.offsetWidth / 2, l: el.offsetLeft, r: el.offsetLeft + el.offsetWidth, top: el.offsetTop, bot: el.offsetTop + el.offsetHeight };
+    }
+
+    /* Та же геометрия линий, что в редакторе Charts: блоки на одном
+       уровне соединяет прямая горизонталь. */
+    function connGeom(p,ch){
+      var t=Math.max(p.top,ch.top),b=Math.min(p.bot,ch.bot);
+      if(b>t){
+        var y=Math.round((t+b)/2),ltr=p.cx<=ch.cx;
+        var x1=ltr?p.r:p.l,x2=ltr?ch.l:ch.r;
+        return{d:'M'+x1+','+y+' L'+x2+','+y,x1:x1,y1:y,x2:x2,y2:y};
+      }
+      var down=ch.top>=p.bot,y1=down?p.bot:p.top,y2=down?ch.top:ch.bot;
+      if(Math.abs(p.cx-ch.cx)<1)return{d:'M'+p.cx+','+y1+' L'+p.cx+','+y2,x1:p.cx,y1:y1,x2:p.cx,y2:y2};
+      var m=(y1+y2)/2;
+      return{d:'M'+p.cx+','+y1+' C'+p.cx+','+m+' '+ch.cx+','+m+' '+ch.cx+','+y2,x1:p.cx,y1:y1,x2:ch.cx,y2:y2};
     }
 
     function drawLines(){
@@ -3362,21 +3377,23 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
         if (seen[k]) return; seen[k] = 1;
         var p = nbox(c.from), ch = nbox(c.to);
         if (!p || !ch) return;
-        var my = (p.bot + ch.top) / 2;
+        var g = connGeom(p, ch);
         if (aSet[k]) {
           var sc = esc((nodeById(c.from) || {}).color || '#3b82f6');
           var tc = esc((nodeById(c.to) || {}).color || '#3b82f6');
           var gid = 'g' + (gi++) + '-' + uid;
-          defs += '<linearGradient id="' + gid + '" x1="' + p.cx + '" y1="' + p.bot + '" x2="' + ch.cx + '" y2="' + ch.top + '" gradientUnits="userSpaceOnUse">' +
+          defs += '<linearGradient id="' + gid + '" x1="' + g.x1 + '" y1="' + g.y1 + '" x2="' + g.x2 + '" y2="' + g.y2 + '" gradientUnits="userSpaceOnUse">' +
             '<stop offset="0%" stop-color="' + sc + '"/><stop offset="100%" stop-color="' + tc + '"/></linearGradient>';
           defs += '<marker id="ah-' + gid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
             '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + tc + '"/></marker>';
-          paths += '<path d="M' + p.cx + ',' + p.bot + ' C' + p.cx + ',' + my + ' ' + ch.cx + ',' + my + ' ' + ch.cx + ',' + ch.top +
-            '" fill="none" stroke="url(#' + gid + ')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-' + gid + ')"/>';
+          if (c.both) defs += '<marker id="ahs-' + gid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
+            '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + sc + '"/></marker>';
+          paths += '<path d="' + g.d +
+            '" fill="none" stroke="url(#' + gid + ')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-' + gid + ')"' + (c.both ? ' marker-start="url(#ahs-' + gid + ')"' : '') + '/>';
         } else {
           var st = esc(c.color || defSt);
-          paths += '<path d="M' + p.cx + ',' + p.bot + ' C' + p.cx + ',' + my + ' ' + ch.cx + ',' + my + ' ' + ch.cx + ',' + ch.top +
-            '" fill="none" stroke="' + st + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah-' + uid + ')"/>';
+          paths += '<path d="' + g.d +
+            '" fill="none" stroke="' + st + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah-' + uid + ')"' + (c.both ? ' marker-start="url(#ah-' + uid + ')"' : '') + '/>';
         }
       });
       svg.innerHTML = defs + '</defs>' + paths;
