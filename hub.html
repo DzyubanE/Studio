@@ -1167,6 +1167,12 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     .cw-eid { font-size: 11px; color: var(--cw-t2); margin-top: 3px; display: flex; align-items: center; gap: 5px; }
     .cw-reddy-ic { width: 16px; height: 16px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
     .cw-none { font-size: 11.5px; color: var(--cw-t3); font-style: italic; padding: 6px 0; }
+    /* Документы на схемах: баблы на линиях и карточка документа
+       (общий chartDocsKit) красятся токенами схемы. */
+    .cd-bead, .cd-pop, .cd-layer, .cd-list {
+      --cd-bg: var(--cw-bg); --cd-bg2: var(--cw-bg2); --cd-b1: var(--cw-b1); --cd-b2: var(--cw-b2);
+      --cd-t1: var(--cw-t1); --cd-t2: var(--cw-t2); --cd-t3: var(--cw-t3);
+    }
 
     /* ── Сворачиваемые секции ────────────────────────────
        Свёрнутое состояние — класс на секции. Высоту анимируем
@@ -3236,7 +3242,7 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
     } catch (e) { return false; }
   }
-  function groupCardWidth(roleText, hasArrow){
+  function groupCardWidth(roleText, hasArrow, nDocs){
     var probe = document.createElement('span');
     probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:-9999px;top:-9999px;' +
       'font-family:Geist,system-ui,sans-serif;font-weight:700;font-size:13.5px';
@@ -3244,9 +3250,473 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     document.body.appendChild(probe);
     var textW = probe.offsetWidth;
     probe.remove();
-    return Math.max(140, Math.min(640, Math.ceil(textW + 28 + (hasArrow ? 28 : 0))));
+    return Math.max(140, Math.min(640, Math.ceil(textW + 28 + (hasArrow ? 28 : 0) + chartDocsKit().chipW(nDocs || 0))));
   }
   var SEQ = 0;
+
+/* ══ chartDocsKit:begin ══ */
+/* Документы на схемах: баблы на связях, значок на карточках и карточка
+   документа по клику. Одна и та же функция работает в редакторе,
+   в выгрузке HTML, во view.html и в хабах — копии держим одинаковыми. */
+function chartDocsKit(){
+  if (window.__chartDocs) return window.__chartDocs;
+  var TYPES = {
+    reg:  { name:'Регламент',  c:['#4f46e5','#a5b4fc'], ic:'<path d="M3.5 1.5h4l2.5 2.5v7.5h-6.5z"/><path d="M7.5 1.5V4H10"/><path d="M5.3 7h3M5.3 9h2"/>' },
+    agr:  { name:'Соглашение', c:['#0e7490','#67e8f9'], ic:'<circle cx="4.9" cy="6.5" r="2.9"/><circle cx="8.1" cy="6.5" r="2.9"/>' },
+    sla:  { name:'SLA',        c:['#b45309','#fcd34d'], ic:'<circle cx="6.5" cy="6.5" r="4.6"/><path d="M6.5 4v2.7l1.8 1.1"/>' },
+    proc: { name:'Процесс',    c:['#475569','#cbd5e1'], ic:'<circle cx="3.2" cy="3.4" r="1.5"/><circle cx="9.8" cy="9.6" r="1.5"/><path d="M4.7 3.4h2.8a2.2 2.2 0 0 1 2.2 2.2v2.5"/>' },
+    none: { name:'Без типа',   c:['#85837e','#8a8781'], ic:'<circle cx="6.5" cy="6.5" r="1.9" fill="currentColor" stroke="none"/>' }
+  };
+  var VIEWS = { collapse:'Со сворачиванием', beads:'Бусины', lines:'Отдельные линии', count:'Счётчик' };
+  /* На линии — не больше трёх баблов в виде «Со сворачиванием»;
+     шаг по вертикали, отступ от карточек, зазор и шаг пучка линий. */
+  var CAP = 3, SLOT = 36, EDGE = 24, GAP = 8, LANE = 11;
+  var LINK = '<svg viewBox="0 0 8 8"><path d="M2 6L6 2M3 2h3v3"/></svg>';
+  var DOC = '<svg viewBox="0 0 13 13"><path d="M3.5 1.5h4l2.5 2.5v7.5h-6.5z"/><path d="M7.5 1.5V4H10"/></svg>';
+  var CHEV = '<svg class="cd-chev" viewBox="0 0 8 8"><path d="M2.5 1.5l3 2.5-3 2.5"/></svg>';
+  var XSVG = '<svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>';
+  var MONO = "'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace";
+  var SANS = "Geist,system-ui,-apple-system,'Segoe UI',sans-serif";
+  var CSS = [
+    '.cd-layer{position:absolute;left:0;top:0;width:0;height:0;z-index:2}',
+    '.cd-bead{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:6px;height:28px;max-width:180px;margin:0;padding:0 10px 0 4px;border-radius:999px;background:var(--cd-bg,#fff);border:1px solid var(--cd-b2,rgba(0,0,0,.13));box-shadow:0 1px 2px rgba(0,0,0,.06);font:600 11.5px/1 ' + SANS + ';letter-spacing:0;text-transform:none;color:var(--cd-t1,#111);white-space:nowrap;cursor:pointer;box-sizing:border-box;transition:border-color .15s,box-shadow .15s,transform .18s cubic-bezier(.16,1,.3,1)}',
+    '.cd-bead:hover{border-color:var(--c);box-shadow:0 2px 8px rgba(0,0,0,.1);transform:translate(-50%,calc(-50% - 1px))}',
+    '.cd-bead.on{border-color:var(--c);box-shadow:0 2px 8px rgba(0,0,0,.1),0 0 0 3px var(--cr)}',
+    '.cd-bead:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}',
+    '.cd-ic{display:inline-grid;place-items:center;flex-shrink:0;width:20px;height:20px;border-radius:999px}',
+    '.cd-ic svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}',
+    '.cd-tx{overflow:hidden;text-overflow:ellipsis;min-width:0}',
+    '.cd-lk{display:inline-grid;place-items:center;color:var(--cd-t3,#999)}',
+    '.cd-lk svg,.cd-ext svg,.cd-src svg{width:8px;height:8px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}',
+    '.cd-more{padding:0 10px;background:var(--cd-bg2,#f5f4f1);font-family:' + MONO + ';font-weight:500;color:var(--cd-t2,#555)}',
+    '.cd-count{padding:0 11px 0 5px;gap:7px}',
+    '.cd-stack{display:flex}',
+    '.cd-stack .cd-ic{width:18px;height:18px;border:2px solid var(--cd-bg,#fff);margin-left:-6px;box-sizing:content-box}',
+    '.cd-stack .cd-ic:first-child{margin-left:0}',
+    '.cd-stack .cd-ic svg{width:10px;height:10px}',
+    '.cd-n{font-family:' + MONO + ';font-weight:500}',
+    '.cd-cn .cd-hl{opacity:0;transition:opacity .15s}',
+    '.cd-cn.act .cd-hl,.cd-cn.hot .cd-hl{opacity:1}',
+    '.cd-cn.act .cd-base,.cd-cn.hot .cd-base{opacity:0}',
+    '.cd-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}',
+    '.cd-chip{display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 6px 0 5px;border-radius:999px;font:500 10.5px/1 ' + MONO + ';flex-shrink:0;box-sizing:border-box}',
+    '.cd-chip svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}',
+    '.cd-pop{position:fixed;z-index:400;left:0;top:0;width:316px;max-width:calc(100vw - 32px);max-height:min(460px,calc(100vh - 32px));display:flex;flex-direction:column;box-sizing:border-box;text-align:left;background:var(--cd-bg,#fff);border:1px solid var(--cd-b2,rgba(0,0,0,.13));border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,.18);font-family:' + SANS + ';color:var(--cd-t1,#111);opacity:0;transform:scale(.97);transition:opacity .18s,transform .22s cubic-bezier(.16,1,.3,1);pointer-events:none}',
+    '.cd-pop *{box-sizing:border-box}',
+    '.cd-pop.open{opacity:1;transform:none;pointer-events:auto}',
+    '.cd-bar{height:4px;flex-shrink:0}',
+    '.cd-head{padding:14px 16px 12px;border-bottom:1px solid var(--cd-b1,rgba(0,0,0,.07));position:relative;display:flex;flex-direction:column;gap:7px;flex-shrink:0}',
+    '.cd-x{position:absolute;top:12px;right:12px;width:26px;height:26px;margin:0;padding:0;border-radius:8px;background:var(--cd-bg2,#f5f4f1);border:1px solid var(--cd-b1,rgba(0,0,0,.07));display:grid;place-items:center;cursor:pointer;color:var(--cd-t2,#555)}',
+    '.cd-x svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}',
+    '.cd-ty{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 3px;border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}',
+    '.cd-ty .cd-ic{width:18px;height:18px}',
+    '.cd-title{font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1.3;padding-right:30px;overflow-wrap:anywhere}',
+    '.cd-via{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--cd-t2,#555);flex-wrap:wrap}',
+    '.cd-via i{width:7px;height:7px;border-radius:2.5px;flex-shrink:0;display:inline-block}',
+    '.cd-via b{font-weight:400;color:var(--cd-t3,#999)}',
+    '.cd-body{padding:12px 16px 14px;overflow-y:auto;font-size:13px;color:var(--cd-t2,#555);line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}',
+    '.cd-body.cd-listbody{white-space:normal;padding-top:2px}',
+    '.cd-open{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 12px 12px;padding:9px 12px;border-radius:11px;background:var(--cd-bg2,#f5f4f1);border:1px solid var(--cd-b1,rgba(0,0,0,.07));color:var(--cd-t1,#111);text-decoration:none;font-size:12.5px;font-weight:600;flex-shrink:0}',
+    '.cd-open:hover{border-color:var(--cd-b3,rgba(0,0,0,.22))}',
+    '.cd-src{font-family:' + MONO + ';font-size:11px;font-weight:400;color:var(--cd-t3,#999);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;min-width:0}',
+    '.cd-nolink{margin:0 16px 14px;font-size:11.5px;color:var(--cd-t3,#999);font-style:italic}',
+    '.cd-li{border-bottom:1px solid var(--cd-b1,rgba(0,0,0,.07))}',
+    '.cd-li:last-child{border-bottom:none}',
+    '.cd-li-btn{width:100%;display:flex;align-items:center;gap:9px;margin:0;padding:8px 0;background:none;border:none;color:var(--cd-t1,#111);font:600 12.5px/1.35 ' + SANS + ';text-align:left;cursor:pointer}',
+    '.cd-li-btn .cd-ic{width:22px;height:22px}',
+    '.cd-li-t{flex:1;min-width:0;overflow-wrap:anywhere}',
+    '.cd-chev{width:8px;height:8px;fill:none;stroke:var(--cd-t3,#999);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s;flex-shrink:0}',
+    '.cd-li.open .cd-chev{transform:rotate(90deg)}',
+    '.cd-li-more{display:none;padding:0 0 12px 31px;font-size:12px;color:var(--cd-t2,#555);line-height:1.6}',
+    '.cd-li.open .cd-li-more{display:block}',
+    '.cd-li-desc{white-space:pre-wrap;overflow-wrap:anywhere}',
+    '.cd-ext{display:flex;width:fit-content;align-items:center;gap:5px;margin-top:6px;font-size:12px;font-weight:600;color:#3b82f6;text-decoration:none}',
+    '.cd-ext:hover{text-decoration:underline}',
+    '.cd-li-btn:focus-visible,.cd-open:focus-visible,.cd-x:focus-visible,.cd-ext:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}',
+    '@media(max-width:560px){.cd-pop{left:16px!important;right:16px;width:auto;max-width:none;top:auto!important;bottom:16px}}',
+    '@media(prefers-reduced-motion:reduce){.cd-bead,.cd-pop,.cd-cn .cd-hl,.cd-chev{transition:none}}'
+  ].join('\n');
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function ha(h, a){
+    var m = /^#([0-9a-f]{6})$/i.exec(String(h || ''));
+    if (!m) return h;
+    var n = parseInt(m[1], 16);
+    return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function ty(t){ return TYPES[t] ? t : 'none'; }
+  function tcolor(t, dark){ return TYPES[ty(t)].c[dark ? 1 : 0]; }
+  function icon(t, dark, size){
+    var c = tcolor(t, dark);
+    return '<span class="cd-ic" style="color:' + c + ';background:' + ha(c, dark ? .16 : .13) + '"><svg viewBox="0 0 13 13" aria-hidden="true">' + TYPES[ty(t)].ic + '</svg></span>';
+  }
+  function plural(n, f){ var a = n % 10, b = n % 100; return f[a === 1 && b !== 11 ? 0 : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? 1 : 2]; }
+  function docWord(n){ return n + ' ' + plural(n, ['документ','документа','документов']); }
+  function docsOf(x){ return x && Array.isArray(x.docs) ? x.docs.filter(function(d){ return d && typeof d === 'object'; }) : []; }
+  function title(d){ return String(d.title || '').trim() || 'Без названия'; }
+  function view(c, settings){
+    var v = c && c.docsView;
+    if (!VIEWS[v]) v = settings && settings.docsView;
+    return VIEWS[v] ? v : 'collapse';
+  }
+  /* Подпись источника по адресу — так же, как плитки в хабах. */
+  function source(url){
+    var h = String(url || '');
+    if (/docs\.google\.com\/spreadsheets|sheets\.google\./i.test(h)) return 'Google Таблица';
+    if (/docs\.google\.com\/document/i.test(h)) return 'Google Документ';
+    if (/docs\.google\.com\/forms|forms\.gle\//i.test(h)) return 'Google Форма';
+    if (/docs\.google\.com\/presentation/i.test(h)) return 'Google Презентация';
+    if (/drive\.google\.com/i.test(h)) return 'Google Диск';
+    if (/confluence|\/wiki\/|\/display\/|viewpage\.action|\/pages\/\d/i.test(h)) return 'Confluence';
+    var m = h.match(/^https?:\/\/(?:www\.)?([^\/?#]+)/i);
+    return m ? m[1] : 'Ссылка';
+  }
+  function safeUrl(u){
+    u = String(u || '').trim();
+    if (!u || /^\s*(javascript|data|vbscript):/i.test(u)) return '';
+    return u;
+  }
+  /* Ссылку открываем из верхнего окна, как плитки хаба: страница
+     часто встроена в Confluence, и из фрейма вкладку браузер блокирует. */
+  function openLink(url, sameTab){
+    url = safeUrl(url);
+    if (!url) return;
+    var top = window;
+    try { top = window.top || window; } catch (e) {}
+    if (sameTab) { try { top.location.assign(url); } catch (e) { window.location.assign(url); } return; }
+    try {
+      var w = top.open(url, '_blank', 'noopener,noreferrer');
+      if (!w || w.closed) top.location.assign(url);
+    } catch (e) {
+      try { top.location.assign(url); } catch (e2) { window.open(url, '_blank'); }
+    }
+  }
+  function linkHtml(cls, url, inner){
+    return '<a class="' + cls + ' hub-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
+  }
+
+  /* ── Значок на карточке ── */
+  function chipHtml(n, light){
+    if (!n) return '';
+    return '<span class="cd-chip" title="' + docWord(n) + '" style="color:' + (light ? '#1a1a1a' : '#fff') + ';background:' + (light ? 'rgba(0,0,0,.1)' : 'rgba(255,255,255,.2)') + '">' + DOC + n + '</span>';
+  }
+  /* Сколько значок добавляет к ширине карточки группы (вместе с зазором). */
+  function chipW(n){ return n ? Math.ceil(33 + 6.5 * String(n).length) : 0; }
+
+  /* ── Геометрия ── */
+  function shift(b, dx){ return { cx:b.cx + dx, l:b.l + dx, r:b.r + dx, top:b.top, bot:b.bot }; }
+  function fan(base, o){
+    var ax = base.x1 + o * 12, bx = base.x2 + o * 12, mx = base.x1 + o * 172;
+    var y1 = base.y1, y2 = base.y2, ym = (y1 + y2) / 2;
+    return { d:'M' + ax + ',' + y1 + ' C' + ax + ',' + (y1 + 70) + ' ' + mx + ',' + (ym - 80) + ' ' + mx + ',' + ym +
+                ' C' + mx + ',' + (ym + 80) + ' ' + bx + ',' + (y2 - 70) + ' ' + bx + ',' + y2,
+             x1:ax, y1:y1, x2:bx, y2:y2, mid:{ x:mx, y:ym } };
+  }
+  /* «Отдельные линии»: блоки строго друг под другом и документов до
+     четырёх — веер; иначе плотный пучок, чтобы не вылезать за схему. */
+  function geoms(p, ch, n, mode, connGeom){
+    var base = connGeom(p, ch);
+    base.hor = base.y1 === base.y2 && base.x1 !== base.x2;
+    if (mode !== 'lines' || n < 2) return [base];
+    var out = [], i, o, g;
+    for (i = 0; i < n; i++) {
+      o = i - (n - 1) / 2;
+      if (!base.hor && base.x1 === base.x2 && n <= 4) out.push(fan(base, o));
+      else if (base.hor) out.push({ d:'M' + base.x1 + ',' + (base.y1 + o * LANE) + ' L' + base.x2 + ',' + (base.y2 + o * LANE),
+                                     x1:base.x1, y1:base.y1 + o * LANE, x2:base.x2, y2:base.y2 + o * LANE, hor:true });
+      else { g = connGeom(shift(p, o * LANE), shift(ch, o * LANE)); g.hor = false; out.push(g); }
+    }
+    return out;
+  }
+  /* Точки линии без DOM: путь — это M, L и C из connGeom. */
+  function sample(d){
+    var re = /([MLC])([^MLC]*)/g, m, cur = [0, 0], pts = [], a, i, s, t, v;
+    while ((m = re.exec(d))) {
+      a = (m[2].match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+      if (m[1] === 'M') { cur = [a[0], a[1]]; pts.push({ x:cur[0], y:cur[1] }); }
+      else if (m[1] === 'L') {
+        for (i = 0; i + 1 < a.length; i += 2) {
+          for (s = 1; s <= 40; s++) { t = s / 40; pts.push({ x:cur[0] + (a[i] - cur[0]) * t, y:cur[1] + (a[i + 1] - cur[1]) * t }); }
+          cur = [a[i], a[i + 1]];
+        }
+      } else {
+        for (i = 0; i + 5 < a.length; i += 6) {
+          for (s = 1; s <= 60; s++) {
+            t = s / 60; v = 1 - t;
+            pts.push({ x:v*v*v*cur[0] + 3*v*v*t*a[i] + 3*v*t*t*a[i + 2] + t*t*t*a[i + 4],
+                       y:v*v*v*cur[1] + 3*v*v*t*a[i + 1] + 3*v*t*t*a[i + 3] + t*t*t*a[i + 5] });
+          }
+          cur = [a[i + 4], a[i + 5]];
+        }
+      }
+    }
+    return pts;
+  }
+  function xAt(pts, y){
+    var best = pts[0], bd = Infinity, i, dd;
+    for (i = 0; i < pts.length; i++) { dd = Math.abs(pts[i].y - y); if (dd < bd) { bd = dd; best = pts[i]; } }
+    return best ? best.x : 0;
+  }
+  function midPt(pts){
+    var L = [0], i, half;
+    for (i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    half = L[L.length - 1] / 2;
+    for (i = 1; i < pts.length; i++) if (L[i] >= half) return pts[i];
+    return pts[0] || { x:0, y:0 };
+  }
+
+  function marker(id, color, w){
+    return '<marker id="' + id + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
+      '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round" stroke="' + color + '"/></marker>';
+  }
+
+  /* ── Баблы ── */
+  function beadEl(d, dark){
+    var c = tcolor(d.type, dark), b = document.createElement('button');
+    b.type = 'button'; b.className = 'cd-bead';
+    b.style.setProperty('--c', c); b.style.setProperty('--cr', ha(c, .22));
+    b.innerHTML = icon(d.type, dark) + '<span class="cd-tx">' + esc(title(d)) + '</span>' + (safeUrl(d.url) ? '<span class="cd-lk" aria-hidden="true">' + LINK + '</span>' : '');
+    b.setAttribute('aria-label', TYPES[ty(d.type)].name + ': ' + title(d));
+    return b;
+  }
+  function moreEl(n){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'cd-bead cd-more';
+    b.style.setProperty('--c', 'var(--cd-t3,#999)'); b.style.setProperty('--cr', 'rgba(127,127,127,.18)');
+    b.textContent = '+' + n; b.setAttribute('aria-label', 'Ещё ' + docWord(n));
+    return b;
+  }
+  function countEl(docs, dark){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'cd-bead cd-count';
+    b.style.setProperty('--c', 'var(--cd-t3,#999)'); b.style.setProperty('--cr', 'rgba(127,127,127,.18)');
+    b.innerHTML = '<span class="cd-stack">' + docs.slice(0, 3).map(function(d){ return icon(d.type, dark); }).join('') + '</span>' +
+      '<span><span class="cd-n">' + docs.length + '</span> ' + plural(docs.length, ['документ','документа','документов']) + '</span>';
+    b.setAttribute('aria-label', docWord(docs.length) + ' на связи');
+    return b;
+  }
+
+  /* Линии и баблы одной схемы. o: svg, layer, conns, box(id), node(id)
+     → {role,color}, activeId, selConn, defStroke, uid, settings, dark,
+     connGeom; в редакторе ещё edit и onPick(conn, индексы, бабл). */
+  function drawConns(o){
+    var uid = o.uid || 'cd', seen = {}, recs = [];
+    var defs = '<defs>' + marker('ah-' + uid, 'context-stroke', 2), body = '';
+    (o.conns || []).forEach(function(c, ci){
+      var key = c.from + '>' + c.to;
+      if (seen[key]) return; seen[key] = 1;
+      var p = o.box(c.from), ch = o.box(c.to);
+      if (!p || !ch) return;
+      var docs = docsOf(c), mode = view(c, o.settings);
+      var gs = geoms(p, ch, docs.length, mode, o.connGeom);
+      var a = o.node(c.from) || {}, b = o.node(c.to) || {};
+      var sc = esc(a.color || '#3b82f6'), tc = esc(b.color || '#3b82f6');
+      var act = c === o.selConn || (!!o.activeId && (c.from === o.activeId || c.to === o.activeId));
+      var ks = gs.map(function(g, gi){
+        var k = uid + '-' + ci + '-' + gi;
+        var hl = act || docs.length;
+        if (hl) {
+          defs += '<linearGradient id="' + k + '-g" gradientUnits="userSpaceOnUse" x1="' + g.x1 + '" y1="' + g.y1 + '" x2="' + g.x2 + '" y2="' + (g.y2 + (g.x1 === g.x2 && g.y1 === g.y2 ? 1 : 0)) + '">' +
+            '<stop offset="0%" stop-color="' + sc + '"/><stop offset="100%" stop-color="' + tc + '"/></linearGradient>' + marker(k + '-e', tc, 2.5);
+          if (c.both) defs += marker(k + '-s', sc, 2.5);
+        }
+        body += '<g class="cd-cn' + (act ? ' act' : '') + '" data-k="' + k + '">' +
+          '<path class="cd-base" d="' + g.d + '" fill="none" stroke="' + esc(c.color || o.defStroke) + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah-' + uid + ')"' + (c.both ? ' marker-start="url(#ah-' + uid + ')"' : '') + '/>' +
+          (hl ? '<path class="cd-hl" d="' + g.d + '" fill="none" stroke="url(#' + k + '-g)" stroke-width="2.5" stroke-linecap="round" marker-end="url(#' + k + '-e)"' + (c.both ? ' marker-start="url(#' + k + '-s)"' : '') + '/>' : '') +
+          (o.edit ? '<path class="cd-hit" data-ci="' + ci + '" d="' + g.d + '"/>' : '') + '</g>';
+        return k;
+      });
+      recs.push({ c:c, ci:ci, docs:docs, mode:mode, gs:gs, ks:ks, via:{ a:a, b:b, both:!!c.both } });
+    });
+    o.svg.innerHTML = defs + '</defs>' + body;
+    o.layer.innerHTML = '';
+    recs.forEach(function(R){ place(o, R); });
+    /* Открытая карточка документа держится за свой бабл: после
+       перерисовки находим его заново по ключу. */
+    if (popKey) {
+      var again = o.layer.querySelector('[data-cdk="' + popKey + '"]');
+      if (again) { popAnchor = again; again.classList.add('on'); if (again.__g) again.__g.forEach(function(g){ g.classList.add('hot'); }); }
+      else if (popAnchor && !document.body.contains(popAnchor)) close();
+    }
+  }
+
+  function place(o, R){
+    var docs = R.docs, n = docs.length, mode = R.mode, dark = !!o.dark;
+    if (!n) return;
+    var gEls = R.ks.map(function(k){ return o.svg.querySelector('[data-k="' + k + '"]'); });
+    var keep = R.c === o.selConn;
+    function put(el, x, y, gi, key, idxs){
+      el.style.left = x + 'px'; el.style.top = y + 'px';
+      el.setAttribute('data-cdk', (o.uid || 'cd') + ':' + R.ci + ':' + key);
+      el.__g = [gEls[gi]];
+      el.addEventListener('mouseenter', function(){ el.__g.forEach(function(g){ if (g) g.classList.add('hot'); }); });
+      el.addEventListener('mouseleave', function(){ if (!el.classList.contains('on')) el.__g.forEach(function(g){ if (g) g.classList.remove('hot'); }); });
+      el.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        if (o.onPick) { o.onPick(R.c, idxs, el); return; }
+        if (popAnchor === el) { close(); return; }
+        if (idxs.length === 1 && el.className.indexOf('cd-count') < 0 && el.className.indexOf('cd-more') < 0) openDoc(el, docs[idxs[0]], R.via, dark);
+        else openList(el, idxs.map(function(i){ return docs[i]; }), R.via, dark);
+      });
+      o.layer.appendChild(el);
+      if (keep && gEls[gi]) gEls[gi].classList.add('act');
+    }
+    var all = docs.map(function(_, i){ return i; });
+    if (mode === 'count') {
+      put(countEl(docs, dark), 0, 0, 0, 'c', all);
+      var mp = midPt(sample(R.gs[0].d)), last = o.layer.lastChild;
+      last.style.left = mp.x + 'px'; last.style.top = mp.y + 'px';
+      return;
+    }
+    var lines = mode === 'lines' && R.gs.length > 1;
+    if (lines && R.gs[0].mid) {
+      docs.forEach(function(d, i){ put(beadEl(d, dark), R.gs[i].mid.x, R.gs[i].mid.y, i, 'd' + i, [i]); });
+      return;
+    }
+    var cap = mode === 'collapse' ? CAP : Infinity, base = R.gs[0], items = [], v, j;
+    var els = docs.map(function(d){ return beadEl(d, dark); });
+    if (base.hor) {
+      els.forEach(function(e){ e.style.visibility = 'hidden'; o.layer.appendChild(e); });
+      var ws = els.map(function(e, i){ return e.offsetWidth || Math.min(180, 40 + 6.6 * title(docs[i]).length); });
+      var probe = moreEl(n); probe.style.visibility = 'hidden'; o.layer.appendChild(probe);
+      var wm = probe.offsetWidth || 36; probe.remove();
+      els.forEach(function(e){ e.remove(); e.style.visibility = ''; });
+      var avail = Math.abs(base.x2 - base.x1) - 2 * EDGE;
+      var width = function(v){ var cnt = v + (v < n ? 1 : 0), t = 0, i; for (i = 0; i < v; i++) t += ws[i]; return t + (v < n ? wm : 0) + GAP * Math.max(0, cnt - 1); };
+      v = Math.min(n, cap);
+      if (!lines) while (v > 0 && (width(v) > avail || v + (v < n ? 1 : 0) > cap)) v--;
+      for (j = 0; j < v; j++) items.push({ e:els[j], w:ws[j], idxs:[j], gi:lines ? j : 0, key:'d' + j });
+      if (v < n) items.push({ e:moreEl(n - v), w:wm, idxs:all.slice(v), gi:0, key:'m' });
+      var x = (base.x1 + base.x2) / 2 - width(v) / 2;
+      items.forEach(function(it){ put(it.e, x + it.w / 2, lines ? R.gs[it.gi].y1 : base.y1, it.gi, it.key, it.idxs); x += it.w + GAP; });
+    } else {
+      var availV = Math.abs(base.y2 - base.y1) - 2 * EDGE, fit = Math.max(1, Math.floor((availV + GAP) / SLOT));
+      var slots = lines ? n : Math.min(fit, cap);
+      v = n <= slots ? n : slots - 1;
+      for (j = 0; j < v; j++) items.push({ e:els[j], idxs:[j], gi:lines ? j : 0, key:'d' + j });
+      if (v < n) items.push({ e:moreEl(n - v), idxs:all.slice(v), gi:0, key:'m' });
+      var ym = (base.y1 + base.y2) / 2, cache = {};
+      items.forEach(function(it, k){
+        var y = ym + (k - (items.length - 1) / 2) * SLOT;
+        var pts = cache[it.gi] || (cache[it.gi] = sample(R.gs[it.gi].d));
+        put(it.e, xAt(pts, y), y, it.gi, it.key, it.idxs);
+      });
+    }
+  }
+
+  /* ── Карточка документа и список ── */
+  function viaHtml(v){
+    return '<div class="cd-via"><i style="background:' + esc(v.a.color) + '"></i>' + esc(v.a.role || '') + '<b>' + (v.both ? '↔' : '→') + '</b>' +
+      '<i style="background:' + esc(v.b.color) + '"></i>' + esc(v.b.role || '') + '</div>';
+  }
+  function listHtml(docs, dark){
+    return '<div class="cd-list">' + docs.map(function(d){
+      var url = safeUrl(d.url), desc = String(d.desc || '').trim();
+      return '<div class="cd-li"><button type="button" class="cd-li-btn" aria-expanded="false">' + icon(d.type, dark) +
+        '<span class="cd-li-t">' + esc(title(d)) + '</span>' + CHEV + '</button><div class="cd-li-more">' +
+        (desc ? '<div class="cd-li-desc">' + esc(desc) + '</div>' : (url ? '' : '<div class="cd-li-desc">Описания нет.</div>')) +
+        (url ? linkHtml('cd-ext', url, 'Открыть · ' + esc(source(url)) + ' ' + LINK) : '') + '</div></div>';
+    }).join('') + '</div>';
+  }
+  var pop = null, popAnchor = null, popKey = '', raf = 0;
+  function ensure(){
+    if (!document.getElementById('cd-css')) {
+      var s = document.createElement('style'); s.id = 'cd-css'; s.textContent = CSS;
+      (document.head || document.documentElement).appendChild(s);
+    }
+    if (!pop && document.body) {
+      pop = document.createElement('div'); pop.className = 'cd-pop'; pop.setAttribute('role', 'dialog');
+      document.body.appendChild(pop);
+    }
+  }
+  function show(anchor, html, label){
+    ensure();
+    if (popAnchor && popAnchor !== anchor) release(popAnchor);
+    pop.innerHTML = html; pop.setAttribute('aria-label', label);
+    popAnchor = anchor; popKey = anchor.getAttribute('data-cdk') || '';
+    anchor.classList.add('on');
+    if (anchor.__g) anchor.__g.forEach(function(g){ if (g) g.classList.add('hot'); });
+    position(); pop.classList.add('open');
+    cancelAnimationFrame(raf);
+    (function tick(){ if (!popAnchor) return; position(); raf = requestAnimationFrame(tick); })();
+  }
+  function openDoc(anchor, d, via, dark){
+    var c = tcolor(d.type, dark), url = safeUrl(d.url), desc = String(d.desc || '').trim();
+    show(anchor,
+      '<div class="cd-bar" style="background:' + c + '"></div><div class="cd-head"><button type="button" class="cd-x" aria-label="Закрыть">' + XSVG + '</button>' +
+      '<span class="cd-ty" style="color:' + c + ';background:' + ha(c, dark ? .16 : .12) + '">' + icon(d.type, dark) + TYPES[ty(d.type)].name + '</span>' +
+      '<div class="cd-title">' + esc(title(d)) + '</div>' + viaHtml(via) + '</div>' +
+      (desc ? '<div class="cd-body">' + esc(desc) + '</div>' : '') +
+      (url ? linkHtml('cd-open', url, 'Открыть документ<span class="cd-src">' + esc(source(url)) + ' ' + LINK + '</span>')
+           : '<div class="cd-nolink">' + (desc ? 'Ссылки нет — только описание.' : 'Ни описания, ни ссылки пока нет.') + '</div>'),
+      title(d));
+  }
+  function openList(anchor, docs, via, dark){
+    show(anchor,
+      '<div class="cd-head"><button type="button" class="cd-x" aria-label="Закрыть">' + XSVG + '</button>' +
+      '<div class="cd-title">' + docWord(docs.length) + '</div>' + viaHtml(via) + '</div>' +
+      '<div class="cd-body cd-listbody">' + listHtml(docs, dark) + '</div>', 'Документы на связи');
+  }
+  function position(){
+    if (!popAnchor || !pop) return;
+    if (!document.body.contains(popAnchor)) { close(); return; }
+    if (window.innerWidth <= 560) { pop.style.left = ''; pop.style.top = ''; return; }
+    var r = popAnchor.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight, m = 16;
+    var left = r.right + 12, top = r.top + r.height / 2 - ph / 2;
+    if (left + pw > window.innerWidth - m) left = r.left - 12 - pw;
+    if (left < m) {
+      left = Math.min(Math.max(m, r.left + r.width / 2 - pw / 2), window.innerWidth - m - pw);
+      top = r.bottom + 10;
+      if (top + ph > window.innerHeight - m) top = r.top - 10 - ph;
+    }
+    top = Math.min(Math.max(m, top), window.innerHeight - m - ph);
+    pop.style.left = Math.round(left) + 'px'; pop.style.top = Math.round(top) + 'px';
+  }
+  function release(a){
+    a.classList.remove('on');
+    if (a.__g && !(a.matches && a.matches(':hover'))) a.__g.forEach(function(g){ if (g) g.classList.remove('hot'); });
+  }
+  function close(){
+    if (popAnchor) release(popAnchor);
+    popAnchor = null; popKey = '';
+    cancelAnimationFrame(raf);
+    if (pop) pop.classList.remove('open');
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var li = t.closest('.cd-li-btn');
+    if (li) {
+      var it = li.parentNode; it.classList.toggle('open');
+      li.setAttribute('aria-expanded', it.classList.contains('open') ? 'true' : 'false');
+      return;
+    }
+    var a = t.closest('a.cd-open, a.cd-ext');
+    if (a) {
+      /* В хабе такие ссылки уже открывает его общий обработчик. */
+      if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      e.preventDefault();
+      openLink(a.getAttribute('href'), e.altKey);
+      return;
+    }
+    if (t.closest('.cd-x')) { close(); return; }
+    if (popAnchor && pop && !pop.contains(t)) close();
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && popAnchor) close(); });
+
+  ensure();
+  window.__chartDocs = {
+    TYPES:TYPES, VIEWS:VIEWS, esc:esc, ha:ha, ty:ty, tcolor:tcolor, icon:icon, docWord:docWord, docsOf:docsOf,
+    view:view, source:source, safeUrl:safeUrl, openLink:openLink, chipHtml:chipHtml, chipW:chipW,
+    drawConns:drawConns, listHtml:listHtml, close:close, ensure:ensure
+  };
+  return window.__chartDocs;
+}
+/* ══ chartDocsKit:end ══ */
+  var DK = chartDocsKit();
+  function isDark(){ return document.body.getAttribute('data-theme') === 'dark'; }
 
   /* Все схемы на странице: карточка сотрудника всегда одна —
      открытая в соседней схеме закрывается сама. */
@@ -3261,17 +3731,19 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
   });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeAll(); });
 
-  function mountChart(root, nodesObj, connsArr){
+  function mountChart(root, nodesObj, connsArr, settings){
     var NODES = Object.keys(nodesObj || {}).map(function(k){ return nodesObj[k]; });
     var CONNS = connsArr || [];
+    var SETTINGS = settings || {};
     if (!NODES.length) { root.innerHTML = '<div class="cw-empty">Схема пуста</div>'; return; }
 
     root.innerHTML = '<div class="cw-viewport"><div class="cw-spacer"></div>' +
-      '<div class="cw-stage"><svg class="cw-lines"></svg></div></div>';
+      '<div class="cw-stage"><svg class="cw-lines"></svg><div class="cd-layer"></div></div></div>';
     var viewport = root.querySelector('.cw-viewport');
     var spacer = root.querySelector('.cw-spacer');
     var stage = root.querySelector('.cw-stage');
     var svg = root.querySelector('.cw-lines');
+    var layer = root.querySelector('.cd-layer');
     var activeId = null, dp = null;
     var W = 0, H = 0, PAD_X = 40, PAD_TOP = 16, PAD_BOTTOM = 40;
 
@@ -3297,21 +3769,22 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       var arrStroke = light ? '#1a1a1a' : '#fff';
       var subtitle = isGroup ? esc(d.dept || '') : (esc(d.dept || '') + ' · ' + esc(d.sched || ''));
       var subHtml = subtitle.trim() ? '<div class="cw-dept" style="color:' + deptColor + '">' + subtitle + '</div>' : '';
-      /* Группа без описания раскрывать нечем — она просто шапка. */
-      var expandable = !(isGroup && !d.desc);
+      /* Группа без описания и без документов раскрывать нечем — она просто шапка. */
+      var nDocs = DK.docsOf(d).length;
+      var expandable = !(isGroup && !d.desc && !nDocs);
       var arrHtml = expandable
         ? '<div class="cw-arr" style="background:' + arrBg + '"><svg viewBox="0 0 8 8" fill="none">' +
           '<path d="M2 1.5l3.5 3L2 7" stroke="' + arrStroke + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
         : '';
       if (!expandable) el.classList.add('cw-node-static');
-      var centerText = isGroup && !d.dept && !d.desc;
+      var centerText = isGroup && !d.dept && !expandable;
       el.innerHTML = '<div class="cw-head" style="background:linear-gradient(135deg,' + c1 + ',' + c2 + ')">' +
         '<div class="cw-texts"' + (centerText ? ' style="text-align:center"' : '') + '>' +
         '<div class="cw-role" style="color:' + roleColor + '">' + esc(d.role) + '</div>' + subHtml + '</div>' +
-        arrHtml + '</div>';
+        DK.chipHtml(nDocs, light) + arrHtml + '</div>';
       /* Ширину группы считаем той же меркой, что и редактор, —
          иначе карточка разъедется на пару пикселей. */
-      if (isGroup) el.style.width = (d.w || groupCardWidth(d.role, expandable)) + 'px';
+      if (isGroup) el.style.width = (d.w || groupCardWidth(d.role, expandable, nDocs)) + 'px';
       if (expandable) el.addEventListener('click', function(e){ e.stopPropagation(); toggleNode(d.id, el); });
       stage.appendChild(el);
       elById[d.id] = el;
@@ -3365,38 +3838,14 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
       /* Цвет линий — из токена схемы, чтобы совпадать с выгрузкой
          и в светлой, и в тёмной теме. */
       var defSt = (getComputedStyle(document.body).getPropertyValue('--cw-line') || '').trim() ||
-        (document.body.getAttribute('data-theme') === 'dark' ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.15)');
-      var aSet = {};
-      if (activeId) CONNS.forEach(function(c){ if (c.from === activeId || c.to === activeId) aSet[c.from + '>' + c.to] = 1; });
-      var seen = {}, defs = '<defs>', paths = '', gi = 0;
-      var uid = root.__cwId || (root.__cwId = 'cw' + (++SEQ));
-      defs += '<marker id="ah-' + uid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
-        '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>';
-      CONNS.forEach(function(c){
-        var k = c.from + '>' + c.to;
-        if (seen[k]) return; seen[k] = 1;
-        var p = nbox(c.from), ch = nbox(c.to);
-        if (!p || !ch) return;
-        var g = connGeom(p, ch);
-        if (aSet[k]) {
-          var sc = esc((nodeById(c.from) || {}).color || '#3b82f6');
-          var tc = esc((nodeById(c.to) || {}).color || '#3b82f6');
-          var gid = 'g' + (gi++) + '-' + uid;
-          defs += '<linearGradient id="' + gid + '" x1="' + g.x1 + '" y1="' + g.y1 + '" x2="' + g.x2 + '" y2="' + g.y2 + '" gradientUnits="userSpaceOnUse">' +
-            '<stop offset="0%" stop-color="' + sc + '"/><stop offset="100%" stop-color="' + tc + '"/></linearGradient>';
-          defs += '<marker id="ah-' + gid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
-            '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + tc + '"/></marker>';
-          if (c.both) defs += '<marker id="ahs-' + gid + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
-            '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="' + sc + '"/></marker>';
-          paths += '<path d="' + g.d +
-            '" fill="none" stroke="url(#' + gid + ')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-' + gid + ')"' + (c.both ? ' marker-start="url(#ahs-' + gid + ')"' : '') + '/>';
-        } else {
-          var st = esc(c.color || defSt);
-          paths += '<path d="' + g.d +
-            '" fill="none" stroke="' + st + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah-' + uid + ')"' + (c.both ? ' marker-start="url(#ah-' + uid + ')"' : '') + '/>';
-        }
+        (isDark() ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.15)');
+      /* Линии и баблы документов рисует общий chartDocsKit — тот же,
+         что в редакторе схем и в выгрузке. */
+      DK.drawConns({
+        svg: svg, layer: layer, conns: CONNS, uid: root.__cwId || (root.__cwId = 'cw' + (++SEQ)),
+        dark: isDark(), connGeom: connGeom, settings: SETTINGS, activeId: activeId, box: nbox,
+        defStroke: defSt, node: nodeById
       });
-      svg.innerHTML = defs + '</defs>' + paths;
     }
 
     function closeDP(){
@@ -3430,11 +3879,14 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
         (isGroup ? '' :
           '<div class="cw-dp-sched"><span class="cw-dp-sd" style="background:' + esc(d.color) + '"></span>График ' + esc(d.sched || '') + '</div>') +
         '</div>';
-      var body;
+      var body, docs = DK.docsOf(d);
+      DK.close();
       if (isGroup) {
-        /* У группы вместо обязанностей и сотрудников — описание. */
-        body = '<div class="cw-slb">Описание</div>' +
-          (d.desc ? '<div class="cw-desc">' + esc(d.desc) + '</div>' : '<div class="cw-none">—</div>');
+        /* У группы вместо обязанностей и сотрудников — описание;
+           группа с одними документами обходится без пустого «Описания». */
+        body = d.desc || !docs.length
+          ? '<div class="cw-slb">Описание</div>' + (d.desc ? '<div class="cw-desc">' + esc(d.desc) + '</div>' : '<div class="cw-none">—</div>')
+          : '';
       } else {
         var duties = (d.duties && d.duties.length)
           ? d.duties.map(function(t){ return '<div class="cw-duty"><span class="cw-dd" style="background:' + esc(d.color) + '"></span>' + esc(t) + '</div>'; }).join('')
@@ -3454,6 +3906,7 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
           body += '<div class="cw-slb">Сотрудники</div>' + emps;
         }
       }
+      if (docs.length) body += '<div class="cw-slb">Документы · ' + docs.length + '</div>' + DK.listHtml(docs, isDark());
       dp.innerHTML = head + '<div class="cw-dp-body">' + body + '</div>';
       dp.querySelector('.cw-dp-x').addEventListener('click', function(ev){ ev.stopPropagation(); closeDP(); });
       posDP(el);
@@ -3522,6 +3975,9 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     }
     var rt;
     window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(fit, 120); });
+    /* Схема в свёрнутой секции или на странице, открытой скрытой,
+       меряется нулями — перерисовываем, когда блок получает размер. */
+    if (window.ResizeObserver) new ResizeObserver(function(){ clearTimeout(rt); rt = setTimeout(fit, 60); }).observe(root);
   }
 
   var CHART_DATA = {};
@@ -3541,7 +3997,7 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     if (!el || el.dataset.chartMounted) return;
     el.dataset.chartMounted = '1';
     var payload = CHART_DATA[id] || {};
-    mountChart(el, payload.nodes || {}, payload.conns || []);
+    mountChart(el, payload.nodes || {}, payload.conns || [], payload.settings || {});
   }
   /* Схему нельзя нарисовать в скрытой вкладке — её ширина равна
      нулю. Поэтому монтируем только видимые, а вкладки дёргают
@@ -3555,6 +4011,11 @@ select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;c
     });
   }
   window.hubChartsSync = mountVisible;
+  /* Скрытые сейчас схемы смонтируются сами, как только станут видны. */
+  if (window.ResizeObserver) {
+    var watch = new ResizeObserver(function(){ mountVisible(); });
+    Array.prototype.forEach.call(document.querySelectorAll('.chart-embed[data-chart]'), function(el){ watch.observe(el); });
+  }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountVisible);
   else mountVisible();
@@ -4224,7 +4685,7 @@ function chatTileHtml(c, editing){
    не рисует напрямую (title/subtitle нужны и вне холста), а разбирает
    рантайм-скрипт при монтировании. */
 function chartDataScript(c){
-  var payload = { nodes: c.nodes || {}, conns: c.conns || [] };
+  var payload = { nodes: c.nodes || {}, conns: c.conns || [], settings: c.settings || {} };
   return '        <script type="application/json" class="chart-data" data-chart-data="' + att(c.id) + '">' +
     JSON.stringify(payload).replace(/</g, '\\u003c') + '<\/script>\n';
 }
@@ -5836,6 +6297,7 @@ function addChartFromSource(sourceId){
   item.title = row.title || 'Без названия';
   item.nodes = body.nodes || {};
   item.conns = body.conns || [];
+  item.settings = body.settings || {};
   item.srcUpdated = row.updated || 0;
   target.charts.push(item);
   selId = 'ch:' + item.id;
@@ -5854,6 +6316,7 @@ function refreshChartItem(itemId){
   if (!row || !body) { toast('Источник не найден в этом браузере'); return; }
   o.nodes = body.nodes || {};
   o.conns = body.conns || [];
+  o.settings = body.settings || {};
   o.srcUpdated = row.updated || 0;
   commit(true);
   toast('Снимок обновлён');
@@ -6200,6 +6663,7 @@ function normalizeSections(list){
         if (!c.id) c.id = uid('ch');
         c.nodes = c.nodes || {};
         c.conns = Array.isArray(c.conns) ? c.conns : [];
+        if (!c.settings || typeof c.settings !== 'object') c.settings = {};
         if (!c.title) c.title = 'Схема';
       });
       delete s.layout;                       /* вкладки переехали на уровень блоков */

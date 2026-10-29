@@ -95,6 +95,43 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
 .xb:hover{background:rgba(220,38,38,.12)}
 .conn-chip{display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;font-size:11.5px;color:var(--t2);margin-bottom:4px}
 .conn-chip .lbl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conn-chip .lbl.go{cursor:pointer}
+.conn-chip .lbl.go:hover{color:var(--accent)}
+.conn-chip .nd{font-family:'Geist Mono',monospace;font-size:10px;color:var(--t3);flex-shrink:0}
+/* Документы: баблы на линиях и карточка документа берут цвета отсюда */
+.cd-bead,.cd-pop,.cd-layer,.cd-list{--cd-bg:var(--surface);--cd-bg2:var(--s2);--cd-b1:var(--b1);--cd-b2:var(--b2);--cd-b3:var(--b3);--cd-t1:var(--t1);--cd-t2:var(--t2);--cd-t3:var(--t3)}
+.route{display:flex;align-items:center;gap:7px;padding:7px 9px;background:var(--s2);border:1px solid var(--b1);border-radius:8px;font-size:12px;font-weight:600;min-width:0}
+.route .d{width:8px;height:8px;border-radius:3px;flex-shrink:0}
+.route .ar{color:var(--t3);flex-shrink:0}
+.route span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vseg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.vseg button{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font:600 11.5px/1.1 'Geist',sans-serif;cursor:pointer;min-width:0;white-space:nowrap}
+.vseg button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.vseg button svg .pl{fill:var(--s2)}
+.vseg button.on{border-color:var(--accent);background:rgba(59,130,246,.1);color:var(--accent)}
+.vseg button.on svg .pl{fill:var(--surface)}
+.hint-line a{color:var(--accent);cursor:pointer;text-decoration:underline}
+.dl{display:flex;flex-direction:column;gap:4px}
+.dl-row{display:flex;align-items:center;gap:7px;padding:5px 8px 5px 5px;border:1px solid var(--b1);border-radius:9px;background:var(--s2);font-size:12px;font-weight:600;color:var(--t1);min-width:0;cursor:pointer}
+.dl-row:hover{border-color:var(--b3)}
+.dl-row .cd-ic{width:18px;height:18px}
+.dl-row .cd-ic svg{width:11px;height:11px}
+.dl-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-row .lk{color:var(--t3);font-size:11px;flex-shrink:0}
+.dl-row.open{background:var(--surface);border-color:var(--accent);border-radius:9px 9px 0 0}
+.dl-edit{display:flex;flex-direction:column;gap:5px;padding:4px 8px 10px;border:1px solid var(--accent);border-top:none;border-radius:0 0 9px 9px;margin-top:-4px;background:var(--surface)}
+.dl-edit .fl{margin:8px 0 0}
+.dl-edit textarea{min-height:64px!important}
+.dl-acts{display:flex;gap:4px;margin-top:6px}
+.dl-acts .btn{padding:5px 9px;font-size:11.5px}
+.dl-acts .btn[disabled]{opacity:.35;pointer-events:none}
+.dl-acts .btn.danger{margin-left:auto}
+.dl-empty{font-size:11.5px;color:var(--t3);font-style:italic}
+.tseg{display:flex;flex-wrap:wrap;gap:4px}
+.tseg button{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px 0 3px;border-radius:999px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);font:600 11px/1 'Geist',sans-serif;cursor:pointer}
+.tseg button .cd-ic{width:16px;height:16px}
+.tseg button .cd-ic svg{width:10px;height:10px}
+.tseg button.on{border-color:var(--tc);color:var(--t1);background:var(--surface)}
 
 /* CANVAS */
 .cv-wrap{flex:1;overflow:hidden;position:relative;cursor:default;
@@ -168,7 +205,7 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
 ::-webkit-scrollbar-thumb{background:var(--b2);border-radius:3px}
 
 /* Mobile elements hidden by default on all screen sizes */
-.mob-toolbar,.mob-topbar,.mob-zoom,.mob-sel-bar{display:none}
+.mob-toolbar,.mob-topbar,.mob-zoom,.mob-sel-bar,.mob-sheet{display:none}
 
 /* ═══════════════ MOBILE ═══════════════ */
 @media(max-width:768px){
@@ -386,6 +423,7 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,1
   <div id="sel-box"></div>
   <div id="world">
     <svg id="svg-lines" width="1" height="1"></svg>
+    <div id="cd-layer" class="cd-layer"></div>
   </div>
   <!-- snap guides -->
   <div class="guide h" id="guide-h"></div>
@@ -457,13 +495,18 @@ let selId = null;
 let multiSel = new Set();
 let connMode = false, connFrom = null, connBoth = false;
 let connLineColor = '#8b8b8b';
+/* Настройки всей схемы. Пока одна: вид документов на связях по
+   умолчанию — у отдельной связи его можно поменять (conn.docsView). */
+let chartSettings = {};
+/* Выделенная линия (сам объект связи) и раскрытый документ в панели. */
+let selConn = null, docOpenIdx = -1;
 let nc = 0;
 let vx = 0, vy = 0, zoom = 1;
 
 // ═══════════════════════════ UNDO/REDO ═══════════════════════
 let history = [], histIdx = -1;
 function snapshot() {
-  const s = JSON.stringify({ nodes, conns });
+  const s = JSON.stringify({ nodes, conns, settings: chartSettings });
   if (history[histIdx] === s) return;
   history = history.slice(0, histIdx + 1);
   history.push(s);
@@ -493,8 +536,8 @@ function redo() {
 function loadSnapshot(s) {
   const state = JSON.parse(s);
   document.querySelectorAll('.onode').forEach(n => n.remove());
-  nodes = {}; conns = state.conns;
-  selId = null; multiSel.clear();
+  nodes = {}; conns = state.conns; chartSettings = state.settings || {};
+  selId = null; selConn = null; multiSel.clear();
   Object.values(state.nodes).forEach(d => { nodes[d.id] = d; renderNode(d.id); });
   drawLines(); deselect(); updateUndoUI();
 }
@@ -558,6 +601,7 @@ function normNode(d) {
   if (typeof d.desc !== 'string') d.desc = '';
   if (!Array.isArray(d.duties)) d.duties = [];
   if (d.emps === undefined) d.emps = d.kind === 'group' ? null : [];
+  if (!Array.isArray(d.docs)) d.docs = [];
   return d;
 }
 function addNode(data) {
@@ -576,15 +620,16 @@ function addNode(data) {
 }
 function addGroup(){ return addNode({ kind:'group' }); }
 
-/** Ширина карточки группы — по её тексту: подпись в ней не переносится. */
-function groupCardWidth(roleText, hasArrow) {
+/** Ширина карточки группы — по её тексту: подпись в ней не переносится.
+    Значок документов тоже стоит в шапке и добавляет свою ширину. */
+function groupCardWidth(roleText, hasArrow, nDocs) {
   const probe = document.createElement('span');
   probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:-9999px;top:-9999px;font-family:Geist,system-ui,sans-serif;font-weight:700;font-size:13.5px';
   probe.textContent = roleText;
   document.body.appendChild(probe);
   const textW = probe.offsetWidth;
   probe.remove();
-  return Math.max(140, Math.min(640, Math.ceil(textW + 28 + (hasArrow ? 28 : 0))));
+  return Math.max(140, Math.min(640, Math.ceil(textW + 28 + (hasArrow ? 28 : 0) + DK.chipW(nDocs || 0))));
 }
 /** Светлый фон требует тёмного текста — иначе подпись не читается. */
 function isLightColor(h){try{const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return(0.299*r+0.587*g+0.114*b)/255>0.6}catch(e){return false}}
@@ -595,7 +640,8 @@ function nodeSize(id) {
   const el = document.getElementById(id);
   if (el && el.offsetWidth) return { w: el.offsetWidth, h: el.offsetHeight };
   const d = nodes[id];
-  return { w: d && d.kind === 'group' ? groupCardWidth(d.role, !!d.desc) : NW, h: NH };
+  const nDocs = d && d.docs ? d.docs.length : 0;
+  return { w: d && d.kind === 'group' ? groupCardWidth(d.role, !!d.desc || nDocs > 0, nDocs) : NW, h: NH };
 }
 
 function renderNode(id) {
@@ -622,12 +668,14 @@ function renderNode(id) {
   const arrStroke = light ? '#1a1a1a' : '#fff';
   const subtitle = isGroup ? esc(d.dept) : (esc(d.dept) + ' · ' + esc(d.sched));
   const subHtml = subtitle.trim() ? `<div class="on-dept" style="color:${deptColor}">${subtitle}</div>` : '';
-  /* Группа без описания на странице не раскрывается — стрелку не рисуем. */
-  const expandable = !(isGroup && !d.desc);
+  /* Группа без описания и без документов на странице не раскрывается —
+     стрелку не рисуем. */
+  const nDocs = d.docs.length;
+  const expandable = !(isGroup && !d.desc && !nDocs);
   const arrHtml = expandable ? `<div class="on-arr" style="background:${arrBg}"><svg viewBox="0 0 8 8"><path d="M2 1.5l3.5 3L2 7" stroke="${arrStroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>` : '';
-  const centerText = isGroup && !d.dept && !d.desc;
-  el.innerHTML = `<div class="on-head" style="background:linear-gradient(135deg,${c1},${c2})"><div class="on-texts"${centerText?' style="text-align:center"':''}><div class="on-role" style="color:${roleColor}">${esc(d.role)}</div>${subHtml}</div>${arrHtml}</div>`;
-  el.style.width = isGroup ? groupCardWidth(d.role, expandable)+'px' : '';
+  const centerText = isGroup && !d.dept && !expandable;
+  el.innerHTML = `<div class="on-head" style="background:linear-gradient(135deg,${c1},${c2})"><div class="on-texts"${centerText?' style="text-align:center"':''}><div class="on-role" style="color:${roleColor}">${esc(d.role)}</div>${subHtml}</div>${DK.chipHtml(nDocs, light)}${arrHtml}</div>`;
+  el.style.width = isGroup ? groupCardWidth(d.role, expandable, nDocs)+'px' : '';
 }
 function ha(h,a){try{const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return`rgba(${r},${g},${b},${a})`}catch{return h}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -775,6 +823,7 @@ let boxSel = false, boxX0 = 0, boxY0 = 0;
 cvWrap.addEventListener('mousedown', e => {
   if (e.button !== 0 || spaceDown || connMode) return;
   if (e.target !== cvWrap && e.target !== world && e.target.id !== 'svg-lines' && !e.target.closest('svg')) return;
+  if (e.target.closest('.cd-hit')) return;
   boxSel = true; const r = cvWrap.getBoundingClientRect();
   boxX0 = e.clientX - r.left; boxY0 = e.clientY - r.top;
   const sb = document.getElementById('sel-box');
@@ -884,19 +933,45 @@ function resolveCollisions() {
 // ═══════════════════════════ SELECT / SIDEBAR ════════════════
 function select(id) {
   document.querySelectorAll('.onode.sel').forEach(n=>n.classList.remove('sel'));
-  selId=id;
+  if(id!==selId) docOpenIdx=-1;
+  const hadConn=!!selConn;
+  selId=id; selConn=null;
   if(id){
     document.getElementById(id)?.classList.add('sel');
     document.getElementById('btn-del').style.display='inline-flex';
     renderSidebar(id);
+    if(hadConn) drawLines();
   } else deselect();
 }
 function deselect() {
-  selId=null; document.querySelectorAll('.onode.sel').forEach(n=>n.classList.remove('sel'));
+  selId=null; selConn=null; docOpenIdx=-1;
+  document.querySelectorAll('.onode.sel').forEach(n=>n.classList.remove('sel'));
   document.getElementById('btn-del').style.display='none';
-  document.getElementById('sb-head').textContent='Свойства';
-  document.getElementById('sb-body').innerHTML='<div class="sb-empty">Выберите блок для редактирования</div>';
+  renderEmptySidebar();
   drawLines();
+}
+/** Выделение линии: клик по ней или по баблу документа. docIdx —
+    какой документ раскрыть в панели (бабл, по которому кликнули). */
+function selectConn(c, docIdx) {
+  if(!c||conns.indexOf(c)<0) return;
+  clearMulti();
+  document.querySelectorAll('.onode.sel').forEach(n=>n.classList.remove('sel'));
+  selId=null; selConn=c;
+  const n=(c.docs||[]).length;
+  docOpenIdx = docIdx!=null && docIdx<n ? docIdx : -1;
+  document.getElementById('btn-del').style.display='inline-flex';
+  renderConnSidebar(); drawLines();
+  if(typeof updateMobSelBar==='function') setTimeout(updateMobSelBar,0);
+}
+function selectConnAt(i){ selectConn(conns[i]); }
+/** Панель без выделения: подсказка и настройки всей схемы. */
+function renderEmptySidebar(){
+  document.getElementById('sb-head').textContent='Свойства';
+  document.getElementById('sb-body').innerHTML=`<div class="sb-empty">Выберите блок или линию для редактирования. К линии, блоку и группе можно прикрепить документы — регламенты, соглашения, SLA.</div>
+    <div class="fl" style="margin-top:18px">Документы на связях</div>
+    ${viewSegHtml(DK.view(null, chartSettings), 'setChartView')}
+    <div class="hint-line">Вид для всей схемы. У отдельной связи его можно поменять — выделите линию.</div>`;
+  syncMobSheet();
 }
 function renderSidebar(id) {
   const d=nodes[id]; if(!d) return;
@@ -915,7 +990,7 @@ function renderSidebar(id) {
     return `<div class="emp-item"><div class="av-btn" id="av-${id}-${i}" onclick="pickAv('${id}',${i})" title="Выбрать файл на компьютере">${av?`<img src="${esc(av)}">`:'📷'}</div><input type="text" value="${esc(e.name||'')}" placeholder="Имя" oninput="setEN('${id}',${i},this.value)"><input type="text" value="${esc(e.reddy||'')}" style="width:76px" placeholder="ID Reddy" oninput="setER('${id}',${i},this.value)"><div class="xb" onclick="remEmp('${id}',${i})">×</div></div>`
       + `<div class="av-row">${avField}<button class="btn" style="padding:4px 8px;font-size:11px" onclick="pickAv('${id}',${i})">Файл</button>${av?`<div class="xb" onclick="clearAv('${id}',${i})" title="Убрать аватар">×</div>`:''}</div>`;
   }).join('');
-  const cConns=conns.map((c,i)=>{if(c.from!==id&&c.to!==id)return'';const out=c.from===id;const other=nodes[out?c.to:c.from];return`<div class="conn-chip"><span class="lbl">${c.both?'↔':out?'→':'←'} ${esc(other?.role||'')}</span><div class="conn-dir ${c.both?'on':''}" title="${c.both?'Сделать односторонней':'Сделать двусторонней'}" onclick="toggleConnBoth(${i})">⇄</div><div class="xb" style="font-size:13px" onclick="removeConn(${i})">×</div></div>`;}).join('');
+  const cConns=conns.map((c,i)=>{if(c.from!==id&&c.to!==id)return'';const out=c.from===id;const other=nodes[out?c.to:c.from];const nd=(c.docs||[]).length;return`<div class="conn-chip"><span class="lbl go" title="Открыть связь и её документы" onclick="selectConnAt(${i})">${c.both?'↔':out?'→':'←'} ${esc(other?.role||'')}</span>${nd?`<span class="nd" title="${DK.docWord(nd)}">${nd} док.</span>`:''}<div class="conn-dir ${c.both?'on':''}" title="${c.both?'Сделать односторонней':'Сделать двусторонней'}" onclick="toggleConnBoth(${i})">⇄</div><div class="xb" style="font-size:13px" onclick="removeConn(${i})">×</div></div>`;}).join('');
   const isGroup = d.kind === 'group';
   /* У группы своя половина полей: описание вместо обязанностей,
      ни графика, ни сотрудников — так же, как на готовой странице. */
@@ -938,9 +1013,119 @@ function renderSidebar(id) {
     <div class="fl">Цвет новых линий</div><div class="color-row">${lcBtns}</div>
     <div class="custom-c"><input type="color" id="lc-pick" value="${connLineColor}" oninput="setLC(this.value)"><input type="text" id="lc-text" value="${connLineColor}" oninput="setLC(this.value)"></div>
     ${kindFields}
+    ${docsEditorHtml(d.docs)}
     <div class="fl">Связи</div><div id="cc-${id}">${cConns||'<div style="font-size:11.5px;color:var(--t3);font-style:italic">Нет связей</div>'}</div>
+    <div class="hint-line">Нажмите на связь, чтобы прикрепить к ней документы.</div>
     <div style="height:8px"></div>
     <button class="btn danger" style="width:100%;justify-content:center" onclick="deleteSelected()">Удалить блок</button>`;
+  syncMobSheet();
+}
+
+// ═══════════════════════════ ДОКУМЕНТЫ ═══════════════════════
+/* Документ — {type, title, desc, url}. Он одинаковый у связи, блока
+   и группы, поэтому и редактор у них один: список в панели, один
+   раскрытый документ правится на месте. Обработчики — в атрибутах,
+   чтобы работала и копия панели в мобильной шторке. */
+const VIEW_ORDER=['beads','lines','count','collapse'];
+const VIEW_SHORT={beads:'Бусины',lines:'Линии',count:'Счётчик',collapse:'Свернуть'};
+const VIEW_ICON={
+  beads:'<path d="M9 1v16"/><rect class="pl" x="4.5" y="3.5" width="9" height="4" rx="2"/><rect class="pl" x="4.5" y="10.5" width="9" height="4" rx="2"/>',
+  lines:'<path d="M6 1v16M9 1v16M12 1v16"/><rect class="pl" x="2.5" y="4" width="7" height="3.6" rx="1.8"/><rect class="pl" x="8.5" y="10.4" width="7" height="3.6" rx="1.8"/>',
+  count:'<path d="M9 1v16"/><rect class="pl" x="3" y="6.5" width="12" height="5" rx="2.5"/>',
+  collapse:'<path d="M9 1v16"/><rect class="pl" x="4.5" y="3" width="9" height="4" rx="2"/><circle class="pl" cx="9" cy="12.5" r="2.5"/>'
+};
+const DOC_TYPES=['reg','agr','sla','proc','none'];
+function isDark(){return window.matchMedia('(prefers-color-scheme:dark)').matches;}
+function viewSegHtml(cur, fn){
+  return `<div class="vseg">${VIEW_ORDER.map(v=>`<button type="button" class="${v===cur?'on':''}" title="${DK.VIEWS[v]}" onclick="${fn}('${v}')"><svg viewBox="0 0 18 18">${VIEW_ICON[v]}</svg>${VIEW_SHORT[v]}</button>`).join('')}</div>`;
+}
+function docsEditorHtml(list){
+  const dark=isDark();
+  const rows=list.map((x,i)=>{
+    const open=i===docOpenIdx, ty=DK.ty(x.type);
+    let h=`<div class="dl-row${open?' open':''}" onclick="docToggle(${i})">${DK.icon(x.type,dark)}<span class="t" data-doc-t="${i}">${esc(x.title||'Без названия')}</span>${DK.safeUrl(x.url)?'<span class="lk" title="Есть ссылка">↗</span>':''}</div>`;
+    if(open) h+=`<div class="dl-edit">
+      <div class="fl">Тип</div><div class="tseg">${DOC_TYPES.map(k=>`<button type="button" class="${k===ty?'on':''}" style="--tc:${DK.tcolor(k,dark)}" onclick="docSetType(${i},'${k}')">${DK.icon(k,dark)}${DK.TYPES[k].name}</button>`).join('')}</div>
+      <div class="fl">Название</div><input type="text" maxlength="28" value="${esc(x.title||'')}" placeholder="Регламент скидок" oninput="docSet(${i},'title',this.value)">
+      <div class="fl">Описание</div><textarea placeholder="О чём документ и кто за что отвечает" oninput="docSet(${i},'desc',this.value)">${esc(x.desc||'')}</textarea>
+      <div class="fl">Ссылка</div><input type="text" value="${esc(x.url||'')}" placeholder="https://confluence…" oninput="docSet(${i},'url',this.value)">
+      <div class="dl-acts"><button class="btn" title="Выше" onclick="docMove(${i},-1)"${i===0?' disabled':''}>↑</button><button class="btn" title="Ниже" onclick="docMove(${i},1)"${i===list.length-1?' disabled':''}>↓</button><button class="btn danger" onclick="docDel(${i})">Удалить</button></div>
+    </div>`;
+    return h;
+  }).join('');
+  return `<div class="fl">Документы${list.length?' · '+list.length:''}</div>
+    <div class="dl">${rows||'<div class="dl-empty">Регламенты, соглашения, SLA — всё, что относится к этому месту схемы</div>'}</div>
+    <button class="btn" style="width:100%;justify-content:center;margin-top:6px" onclick="docAdd()">+ Документ</button>`;
+}
+function renderConnSidebar(){
+  const c=selConn; if(!c) return;
+  const a=nodes[c.from]||{}, b=nodes[c.to]||{};
+  if(!Array.isArray(c.docs)) c.docs=[];
+  const own=DK.VIEWS[c.docsView], cur=DK.view(c, chartSettings), n=c.docs.length;
+  const lcBtns=LINE_COLORS.map(col=>`<div class="cp ${col===c.color?'sel':''}" style="background:${col}" title="${col}" onclick="connSet('color','${col}')"></div>`).join('');
+  document.getElementById('sb-head').textContent='Связь';
+  document.getElementById('sb-body').innerHTML=`
+    <div class="route"><span class="d" style="background:${esc(a.color||'#999')}"></span><span>${esc(a.role||'')}</span><span class="ar">${c.both?'↔':'→'}</span><span class="d" style="background:${esc(b.color||'#999')}"></span><span>${esc(b.role||'')}</span></div>
+    <div class="fl">Направление</div>
+    <div class="kind-seg"><button class="${c.both?'':'on'}" onclick="connSet('both',false)">→ В одну</button><button class="${c.both?'on':''}" onclick="connSet('both',true)">↔ В обе</button></div>
+    <div class="fl">Цвет линии</div><div class="color-row">${lcBtns}</div>
+    ${docsEditorHtml(c.docs)}
+    <div class="fl">Вид документов на линии</div>
+    ${viewSegHtml(cur,'connSetView')}
+    <div class="hint-line">${own?`Своя настройка этой связи. <a onclick="connSetView('')">Как во всей схеме</a>`:'Как во всей схеме — меняется, когда ничего не выделено.'}${cur==='collapse'&&n>3?' На линии видны первые три документа, остальные — в «+'+(n-2)+'».':''}</div>
+    <div style="height:10px"></div>
+    <button class="btn danger" style="width:100%;justify-content:center" onclick="deleteSelected()">Удалить связь</button>`;
+  syncMobSheet();
+}
+/** Перерисовать то, что выделено, — панель, карточку, линии. */
+function refreshSel(){
+  if(selConn) renderConnSidebar();
+  else if(selId&&nodes[selId]){ renderNode(selId); renderSidebar(selId); }
+  drawLines();
+}
+function docOwner(){ return selConn || (selId&&nodes[selId]) || null; }
+function docList(){ const o=docOwner(); if(!o) return null; if(!Array.isArray(o.docs)) o.docs=[]; return o.docs; }
+function docToggle(i){ docOpenIdx = docOpenIdx===i ? -1 : i; refreshSel(); }
+function docAdd(){
+  const l=docList(); if(!l) return;
+  l.push({type:'reg',title:'',desc:'',url:''}); docOpenIdx=l.length-1;
+  refreshSel(); snapshot();
+  /* Сразу в поле названия: без него бабл подпишется «Без названия». */
+  const inp=document.querySelector((isMobile()&&document.getElementById('mob-sheet').classList.contains('open')?'#mob-sheet-body':'#sb-body')+' .dl-edit input[type=text]');
+  if(inp) inp.focus();
+}
+function docSet(i,f,v){
+  const l=docList(); if(!l||!l[i]) return;
+  l[i][f]=v;
+  if(f==='title') document.querySelectorAll(`[data-doc-t="${i}"]`).forEach(el=>{el.textContent=v||'Без названия';});
+  if(selConn) drawLines();
+}
+function docSetType(i,k){ const l=docList(); if(!l||!l[i]) return; l[i].type=k; refreshSel(); snapshot(); }
+function docMove(i,d){
+  const l=docList(); const j=i+d; if(!l||j<0||j>=l.length) return;
+  const x=l[i]; l[i]=l[j]; l[j]=x; docOpenIdx=j; refreshSel(); snapshot();
+}
+function docDel(i){ const l=docList(); if(!l||!l[i]) return; l.splice(i,1); docOpenIdx=-1; refreshSel(); snapshot(); toast('Документ удалён'); }
+function connSet(f,v){
+  const c=selConn; if(!c) return;
+  if(f==='both'){ if(v) c.both=true; else delete c.both; }
+  else c[f]=v;
+  refreshSel(); snapshot();
+}
+function connSetView(v){
+  const c=selConn; if(!c) return;
+  if(DK.VIEWS[v]) c.docsView=v; else delete c.docsView;
+  refreshSel(); snapshot();
+}
+function setChartView(v){
+  if(DK.VIEWS[v]) chartSettings.docsView=v;
+  renderEmptySidebar(); drawLines(); snapshot();
+}
+/** Мобильная шторка показывает копию панели — после правок обновляем её. */
+function syncMobSheet(){
+  const sh=document.getElementById('mob-sheet');
+  if(!sh||!sh.classList.contains('open')||typeof openMobSheet!=='function') return;
+  openMobSheet();
 }
 /** Переключение вида блока. Данные другой половины не стираем:
     вернувшись к должности, человек находит свои обязанности на месте. */
@@ -1026,6 +1211,469 @@ function handleConn(id){
 function removeConn(i){conns.splice(i,1);drawLines();if(selId)renderSidebar(selId);snapshot();}
 function toggleConnBoth(i){const c=conns[i];if(!c)return;if(c.both)delete c.both;else c.both=true;drawLines();if(selId)renderSidebar(selId);snapshot();}
 
+/* ══ chartDocsKit:begin ══ */
+/* Документы на схемах: баблы на связях, значок на карточках и карточка
+   документа по клику. Одна и та же функция работает в редакторе,
+   в выгрузке HTML, во view.html и в хабах — копии держим одинаковыми. */
+function chartDocsKit(){
+  if (window.__chartDocs) return window.__chartDocs;
+  var TYPES = {
+    reg:  { name:'Регламент',  c:['#4f46e5','#a5b4fc'], ic:'<path d="M3.5 1.5h4l2.5 2.5v7.5h-6.5z"/><path d="M7.5 1.5V4H10"/><path d="M5.3 7h3M5.3 9h2"/>' },
+    agr:  { name:'Соглашение', c:['#0e7490','#67e8f9'], ic:'<circle cx="4.9" cy="6.5" r="2.9"/><circle cx="8.1" cy="6.5" r="2.9"/>' },
+    sla:  { name:'SLA',        c:['#b45309','#fcd34d'], ic:'<circle cx="6.5" cy="6.5" r="4.6"/><path d="M6.5 4v2.7l1.8 1.1"/>' },
+    proc: { name:'Процесс',    c:['#475569','#cbd5e1'], ic:'<circle cx="3.2" cy="3.4" r="1.5"/><circle cx="9.8" cy="9.6" r="1.5"/><path d="M4.7 3.4h2.8a2.2 2.2 0 0 1 2.2 2.2v2.5"/>' },
+    none: { name:'Без типа',   c:['#85837e','#8a8781'], ic:'<circle cx="6.5" cy="6.5" r="1.9" fill="currentColor" stroke="none"/>' }
+  };
+  var VIEWS = { collapse:'Со сворачиванием', beads:'Бусины', lines:'Отдельные линии', count:'Счётчик' };
+  /* На линии — не больше трёх баблов в виде «Со сворачиванием»;
+     шаг по вертикали, отступ от карточек, зазор и шаг пучка линий. */
+  var CAP = 3, SLOT = 36, EDGE = 24, GAP = 8, LANE = 11;
+  var LINK = '<svg viewBox="0 0 8 8"><path d="M2 6L6 2M3 2h3v3"/></svg>';
+  var DOC = '<svg viewBox="0 0 13 13"><path d="M3.5 1.5h4l2.5 2.5v7.5h-6.5z"/><path d="M7.5 1.5V4H10"/></svg>';
+  var CHEV = '<svg class="cd-chev" viewBox="0 0 8 8"><path d="M2.5 1.5l3 2.5-3 2.5"/></svg>';
+  var XSVG = '<svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg>';
+  var MONO = "'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace";
+  var SANS = "Geist,system-ui,-apple-system,'Segoe UI',sans-serif";
+  var CSS = [
+    '.cd-layer{position:absolute;left:0;top:0;width:0;height:0;z-index:2}',
+    '.cd-bead{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:6px;height:28px;max-width:180px;margin:0;padding:0 10px 0 4px;border-radius:999px;background:var(--cd-bg,#fff);border:1px solid var(--cd-b2,rgba(0,0,0,.13));box-shadow:0 1px 2px rgba(0,0,0,.06);font:600 11.5px/1 ' + SANS + ';letter-spacing:0;text-transform:none;color:var(--cd-t1,#111);white-space:nowrap;cursor:pointer;box-sizing:border-box;transition:border-color .15s,box-shadow .15s,transform .18s cubic-bezier(.16,1,.3,1)}',
+    '.cd-bead:hover{border-color:var(--c);box-shadow:0 2px 8px rgba(0,0,0,.1);transform:translate(-50%,calc(-50% - 1px))}',
+    '.cd-bead.on{border-color:var(--c);box-shadow:0 2px 8px rgba(0,0,0,.1),0 0 0 3px var(--cr)}',
+    '.cd-bead:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}',
+    '.cd-ic{display:inline-grid;place-items:center;flex-shrink:0;width:20px;height:20px;border-radius:999px}',
+    '.cd-ic svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}',
+    '.cd-tx{overflow:hidden;text-overflow:ellipsis;min-width:0}',
+    '.cd-lk{display:inline-grid;place-items:center;color:var(--cd-t3,#999)}',
+    '.cd-lk svg,.cd-ext svg,.cd-src svg{width:8px;height:8px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}',
+    '.cd-more{padding:0 10px;background:var(--cd-bg2,#f5f4f1);font-family:' + MONO + ';font-weight:500;color:var(--cd-t2,#555)}',
+    '.cd-count{padding:0 11px 0 5px;gap:7px}',
+    '.cd-stack{display:flex}',
+    '.cd-stack .cd-ic{width:18px;height:18px;border:2px solid var(--cd-bg,#fff);margin-left:-6px;box-sizing:content-box}',
+    '.cd-stack .cd-ic:first-child{margin-left:0}',
+    '.cd-stack .cd-ic svg{width:10px;height:10px}',
+    '.cd-n{font-family:' + MONO + ';font-weight:500}',
+    '.cd-cn .cd-hl{opacity:0;transition:opacity .15s}',
+    '.cd-cn.act .cd-hl,.cd-cn.hot .cd-hl{opacity:1}',
+    '.cd-cn.act .cd-base,.cd-cn.hot .cd-base{opacity:0}',
+    '.cd-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}',
+    '.cd-chip{display:inline-flex;align-items:center;gap:3px;height:20px;padding:0 6px 0 5px;border-radius:999px;font:500 10.5px/1 ' + MONO + ';flex-shrink:0;box-sizing:border-box}',
+    '.cd-chip svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}',
+    '.cd-pop{position:fixed;z-index:400;left:0;top:0;width:316px;max-width:calc(100vw - 32px);max-height:min(460px,calc(100vh - 32px));display:flex;flex-direction:column;box-sizing:border-box;text-align:left;background:var(--cd-bg,#fff);border:1px solid var(--cd-b2,rgba(0,0,0,.13));border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,.18);font-family:' + SANS + ';color:var(--cd-t1,#111);opacity:0;transform:scale(.97);transition:opacity .18s,transform .22s cubic-bezier(.16,1,.3,1);pointer-events:none}',
+    '.cd-pop *{box-sizing:border-box}',
+    '.cd-pop.open{opacity:1;transform:none;pointer-events:auto}',
+    '.cd-bar{height:4px;flex-shrink:0}',
+    '.cd-head{padding:14px 16px 12px;border-bottom:1px solid var(--cd-b1,rgba(0,0,0,.07));position:relative;display:flex;flex-direction:column;gap:7px;flex-shrink:0}',
+    '.cd-x{position:absolute;top:12px;right:12px;width:26px;height:26px;margin:0;padding:0;border-radius:8px;background:var(--cd-bg2,#f5f4f1);border:1px solid var(--cd-b1,rgba(0,0,0,.07));display:grid;place-items:center;cursor:pointer;color:var(--cd-t2,#555)}',
+    '.cd-x svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}',
+    '.cd-ty{align-self:flex-start;display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 3px;border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}',
+    '.cd-ty .cd-ic{width:18px;height:18px}',
+    '.cd-title{font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1.3;padding-right:30px;overflow-wrap:anywhere}',
+    '.cd-via{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--cd-t2,#555);flex-wrap:wrap}',
+    '.cd-via i{width:7px;height:7px;border-radius:2.5px;flex-shrink:0;display:inline-block}',
+    '.cd-via b{font-weight:400;color:var(--cd-t3,#999)}',
+    '.cd-body{padding:12px 16px 14px;overflow-y:auto;font-size:13px;color:var(--cd-t2,#555);line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}',
+    '.cd-body.cd-listbody{white-space:normal;padding-top:2px}',
+    '.cd-open{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 12px 12px;padding:9px 12px;border-radius:11px;background:var(--cd-bg2,#f5f4f1);border:1px solid var(--cd-b1,rgba(0,0,0,.07));color:var(--cd-t1,#111);text-decoration:none;font-size:12.5px;font-weight:600;flex-shrink:0}',
+    '.cd-open:hover{border-color:var(--cd-b3,rgba(0,0,0,.22))}',
+    '.cd-src{font-family:' + MONO + ';font-size:11px;font-weight:400;color:var(--cd-t3,#999);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;min-width:0}',
+    '.cd-nolink{margin:0 16px 14px;font-size:11.5px;color:var(--cd-t3,#999);font-style:italic}',
+    '.cd-li{border-bottom:1px solid var(--cd-b1,rgba(0,0,0,.07))}',
+    '.cd-li:last-child{border-bottom:none}',
+    '.cd-li-btn{width:100%;display:flex;align-items:center;gap:9px;margin:0;padding:8px 0;background:none;border:none;color:var(--cd-t1,#111);font:600 12.5px/1.35 ' + SANS + ';text-align:left;cursor:pointer}',
+    '.cd-li-btn .cd-ic{width:22px;height:22px}',
+    '.cd-li-t{flex:1;min-width:0;overflow-wrap:anywhere}',
+    '.cd-chev{width:8px;height:8px;fill:none;stroke:var(--cd-t3,#999);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s;flex-shrink:0}',
+    '.cd-li.open .cd-chev{transform:rotate(90deg)}',
+    '.cd-li-more{display:none;padding:0 0 12px 31px;font-size:12px;color:var(--cd-t2,#555);line-height:1.6}',
+    '.cd-li.open .cd-li-more{display:block}',
+    '.cd-li-desc{white-space:pre-wrap;overflow-wrap:anywhere}',
+    '.cd-ext{display:flex;width:fit-content;align-items:center;gap:5px;margin-top:6px;font-size:12px;font-weight:600;color:#3b82f6;text-decoration:none}',
+    '.cd-ext:hover{text-decoration:underline}',
+    '.cd-li-btn:focus-visible,.cd-open:focus-visible,.cd-x:focus-visible,.cd-ext:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}',
+    '@media(max-width:560px){.cd-pop{left:16px!important;right:16px;width:auto;max-width:none;top:auto!important;bottom:16px}}',
+    '@media(prefers-reduced-motion:reduce){.cd-bead,.cd-pop,.cd-cn .cd-hl,.cd-chev{transition:none}}'
+  ].join('\n');
+
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function ha(h, a){
+    var m = /^#([0-9a-f]{6})$/i.exec(String(h || ''));
+    if (!m) return h;
+    var n = parseInt(m[1], 16);
+    return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function ty(t){ return TYPES[t] ? t : 'none'; }
+  function tcolor(t, dark){ return TYPES[ty(t)].c[dark ? 1 : 0]; }
+  function icon(t, dark, size){
+    var c = tcolor(t, dark);
+    return '<span class="cd-ic" style="color:' + c + ';background:' + ha(c, dark ? .16 : .13) + '"><svg viewBox="0 0 13 13" aria-hidden="true">' + TYPES[ty(t)].ic + '</svg></span>';
+  }
+  function plural(n, f){ var a = n % 10, b = n % 100; return f[a === 1 && b !== 11 ? 0 : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? 1 : 2]; }
+  function docWord(n){ return n + ' ' + plural(n, ['документ','документа','документов']); }
+  function docsOf(x){ return x && Array.isArray(x.docs) ? x.docs.filter(function(d){ return d && typeof d === 'object'; }) : []; }
+  function title(d){ return String(d.title || '').trim() || 'Без названия'; }
+  function view(c, settings){
+    var v = c && c.docsView;
+    if (!VIEWS[v]) v = settings && settings.docsView;
+    return VIEWS[v] ? v : 'collapse';
+  }
+  /* Подпись источника по адресу — так же, как плитки в хабах. */
+  function source(url){
+    var h = String(url || '');
+    if (/docs\.google\.com\/spreadsheets|sheets\.google\./i.test(h)) return 'Google Таблица';
+    if (/docs\.google\.com\/document/i.test(h)) return 'Google Документ';
+    if (/docs\.google\.com\/forms|forms\.gle\//i.test(h)) return 'Google Форма';
+    if (/docs\.google\.com\/presentation/i.test(h)) return 'Google Презентация';
+    if (/drive\.google\.com/i.test(h)) return 'Google Диск';
+    if (/confluence|\/wiki\/|\/display\/|viewpage\.action|\/pages\/\d/i.test(h)) return 'Confluence';
+    var m = h.match(/^https?:\/\/(?:www\.)?([^\/?#]+)/i);
+    return m ? m[1] : 'Ссылка';
+  }
+  function safeUrl(u){
+    u = String(u || '').trim();
+    if (!u || /^\s*(javascript|data|vbscript):/i.test(u)) return '';
+    return u;
+  }
+  /* Ссылку открываем из верхнего окна, как плитки хаба: страница
+     часто встроена в Confluence, и из фрейма вкладку браузер блокирует. */
+  function openLink(url, sameTab){
+    url = safeUrl(url);
+    if (!url) return;
+    var top = window;
+    try { top = window.top || window; } catch (e) {}
+    if (sameTab) { try { top.location.assign(url); } catch (e) { window.location.assign(url); } return; }
+    try {
+      var w = top.open(url, '_blank', 'noopener,noreferrer');
+      if (!w || w.closed) top.location.assign(url);
+    } catch (e) {
+      try { top.location.assign(url); } catch (e2) { window.open(url, '_blank'); }
+    }
+  }
+  function linkHtml(cls, url, inner){
+    return '<a class="' + cls + ' hub-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + inner + '</a>';
+  }
+
+  /* ── Значок на карточке ── */
+  function chipHtml(n, light){
+    if (!n) return '';
+    return '<span class="cd-chip" title="' + docWord(n) + '" style="color:' + (light ? '#1a1a1a' : '#fff') + ';background:' + (light ? 'rgba(0,0,0,.1)' : 'rgba(255,255,255,.2)') + '">' + DOC + n + '</span>';
+  }
+  /* Сколько значок добавляет к ширине карточки группы (вместе с зазором). */
+  function chipW(n){ return n ? Math.ceil(33 + 6.5 * String(n).length) : 0; }
+
+  /* ── Геометрия ── */
+  function shift(b, dx){ return { cx:b.cx + dx, l:b.l + dx, r:b.r + dx, top:b.top, bot:b.bot }; }
+  function fan(base, o){
+    var ax = base.x1 + o * 12, bx = base.x2 + o * 12, mx = base.x1 + o * 172;
+    var y1 = base.y1, y2 = base.y2, ym = (y1 + y2) / 2;
+    return { d:'M' + ax + ',' + y1 + ' C' + ax + ',' + (y1 + 70) + ' ' + mx + ',' + (ym - 80) + ' ' + mx + ',' + ym +
+                ' C' + mx + ',' + (ym + 80) + ' ' + bx + ',' + (y2 - 70) + ' ' + bx + ',' + y2,
+             x1:ax, y1:y1, x2:bx, y2:y2, mid:{ x:mx, y:ym } };
+  }
+  /* «Отдельные линии»: блоки строго друг под другом и документов до
+     четырёх — веер; иначе плотный пучок, чтобы не вылезать за схему. */
+  function geoms(p, ch, n, mode, connGeom){
+    var base = connGeom(p, ch);
+    base.hor = base.y1 === base.y2 && base.x1 !== base.x2;
+    if (mode !== 'lines' || n < 2) return [base];
+    var out = [], i, o, g;
+    for (i = 0; i < n; i++) {
+      o = i - (n - 1) / 2;
+      if (!base.hor && base.x1 === base.x2 && n <= 4) out.push(fan(base, o));
+      else if (base.hor) out.push({ d:'M' + base.x1 + ',' + (base.y1 + o * LANE) + ' L' + base.x2 + ',' + (base.y2 + o * LANE),
+                                     x1:base.x1, y1:base.y1 + o * LANE, x2:base.x2, y2:base.y2 + o * LANE, hor:true });
+      else { g = connGeom(shift(p, o * LANE), shift(ch, o * LANE)); g.hor = false; out.push(g); }
+    }
+    return out;
+  }
+  /* Точки линии без DOM: путь — это M, L и C из connGeom. */
+  function sample(d){
+    var re = /([MLC])([^MLC]*)/g, m, cur = [0, 0], pts = [], a, i, s, t, v;
+    while ((m = re.exec(d))) {
+      a = (m[2].match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+      if (m[1] === 'M') { cur = [a[0], a[1]]; pts.push({ x:cur[0], y:cur[1] }); }
+      else if (m[1] === 'L') {
+        for (i = 0; i + 1 < a.length; i += 2) {
+          for (s = 1; s <= 40; s++) { t = s / 40; pts.push({ x:cur[0] + (a[i] - cur[0]) * t, y:cur[1] + (a[i + 1] - cur[1]) * t }); }
+          cur = [a[i], a[i + 1]];
+        }
+      } else {
+        for (i = 0; i + 5 < a.length; i += 6) {
+          for (s = 1; s <= 60; s++) {
+            t = s / 60; v = 1 - t;
+            pts.push({ x:v*v*v*cur[0] + 3*v*v*t*a[i] + 3*v*t*t*a[i + 2] + t*t*t*a[i + 4],
+                       y:v*v*v*cur[1] + 3*v*v*t*a[i + 1] + 3*v*t*t*a[i + 3] + t*t*t*a[i + 5] });
+          }
+          cur = [a[i + 4], a[i + 5]];
+        }
+      }
+    }
+    return pts;
+  }
+  function xAt(pts, y){
+    var best = pts[0], bd = Infinity, i, dd;
+    for (i = 0; i < pts.length; i++) { dd = Math.abs(pts[i].y - y); if (dd < bd) { bd = dd; best = pts[i]; } }
+    return best ? best.x : 0;
+  }
+  function midPt(pts){
+    var L = [0], i, half;
+    for (i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    half = L[L.length - 1] / 2;
+    for (i = 1; i < pts.length; i++) if (L[i] >= half) return pts[i];
+    return pts[0] || { x:0, y:0 };
+  }
+
+  function marker(id, color, w){
+    return '<marker id="' + id + '" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">' +
+      '<path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="' + w + '" stroke-linecap="round" stroke-linejoin="round" stroke="' + color + '"/></marker>';
+  }
+
+  /* ── Баблы ── */
+  function beadEl(d, dark){
+    var c = tcolor(d.type, dark), b = document.createElement('button');
+    b.type = 'button'; b.className = 'cd-bead';
+    b.style.setProperty('--c', c); b.style.setProperty('--cr', ha(c, .22));
+    b.innerHTML = icon(d.type, dark) + '<span class="cd-tx">' + esc(title(d)) + '</span>' + (safeUrl(d.url) ? '<span class="cd-lk" aria-hidden="true">' + LINK + '</span>' : '');
+    b.setAttribute('aria-label', TYPES[ty(d.type)].name + ': ' + title(d));
+    return b;
+  }
+  function moreEl(n){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'cd-bead cd-more';
+    b.style.setProperty('--c', 'var(--cd-t3,#999)'); b.style.setProperty('--cr', 'rgba(127,127,127,.18)');
+    b.textContent = '+' + n; b.setAttribute('aria-label', 'Ещё ' + docWord(n));
+    return b;
+  }
+  function countEl(docs, dark){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'cd-bead cd-count';
+    b.style.setProperty('--c', 'var(--cd-t3,#999)'); b.style.setProperty('--cr', 'rgba(127,127,127,.18)');
+    b.innerHTML = '<span class="cd-stack">' + docs.slice(0, 3).map(function(d){ return icon(d.type, dark); }).join('') + '</span>' +
+      '<span><span class="cd-n">' + docs.length + '</span> ' + plural(docs.length, ['документ','документа','документов']) + '</span>';
+    b.setAttribute('aria-label', docWord(docs.length) + ' на связи');
+    return b;
+  }
+
+  /* Линии и баблы одной схемы. o: svg, layer, conns, box(id), node(id)
+     → {role,color}, activeId, selConn, defStroke, uid, settings, dark,
+     connGeom; в редакторе ещё edit и onPick(conn, индексы, бабл). */
+  function drawConns(o){
+    var uid = o.uid || 'cd', seen = {}, recs = [];
+    var defs = '<defs>' + marker('ah-' + uid, 'context-stroke', 2), body = '';
+    (o.conns || []).forEach(function(c, ci){
+      var key = c.from + '>' + c.to;
+      if (seen[key]) return; seen[key] = 1;
+      var p = o.box(c.from), ch = o.box(c.to);
+      if (!p || !ch) return;
+      var docs = docsOf(c), mode = view(c, o.settings);
+      var gs = geoms(p, ch, docs.length, mode, o.connGeom);
+      var a = o.node(c.from) || {}, b = o.node(c.to) || {};
+      var sc = esc(a.color || '#3b82f6'), tc = esc(b.color || '#3b82f6');
+      var act = c === o.selConn || (!!o.activeId && (c.from === o.activeId || c.to === o.activeId));
+      var ks = gs.map(function(g, gi){
+        var k = uid + '-' + ci + '-' + gi;
+        var hl = act || docs.length;
+        if (hl) {
+          defs += '<linearGradient id="' + k + '-g" gradientUnits="userSpaceOnUse" x1="' + g.x1 + '" y1="' + g.y1 + '" x2="' + g.x2 + '" y2="' + (g.y2 + (g.x1 === g.x2 && g.y1 === g.y2 ? 1 : 0)) + '">' +
+            '<stop offset="0%" stop-color="' + sc + '"/><stop offset="100%" stop-color="' + tc + '"/></linearGradient>' + marker(k + '-e', tc, 2.5);
+          if (c.both) defs += marker(k + '-s', sc, 2.5);
+        }
+        body += '<g class="cd-cn' + (act ? ' act' : '') + '" data-k="' + k + '">' +
+          '<path class="cd-base" d="' + g.d + '" fill="none" stroke="' + esc(c.color || o.defStroke) + '" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah-' + uid + ')"' + (c.both ? ' marker-start="url(#ah-' + uid + ')"' : '') + '/>' +
+          (hl ? '<path class="cd-hl" d="' + g.d + '" fill="none" stroke="url(#' + k + '-g)" stroke-width="2.5" stroke-linecap="round" marker-end="url(#' + k + '-e)"' + (c.both ? ' marker-start="url(#' + k + '-s)"' : '') + '/>' : '') +
+          (o.edit ? '<path class="cd-hit" data-ci="' + ci + '" d="' + g.d + '"/>' : '') + '</g>';
+        return k;
+      });
+      recs.push({ c:c, ci:ci, docs:docs, mode:mode, gs:gs, ks:ks, via:{ a:a, b:b, both:!!c.both } });
+    });
+    o.svg.innerHTML = defs + '</defs>' + body;
+    o.layer.innerHTML = '';
+    recs.forEach(function(R){ place(o, R); });
+    /* Открытая карточка документа держится за свой бабл: после
+       перерисовки находим его заново по ключу. */
+    if (popKey) {
+      var again = o.layer.querySelector('[data-cdk="' + popKey + '"]');
+      if (again) { popAnchor = again; again.classList.add('on'); if (again.__g) again.__g.forEach(function(g){ g.classList.add('hot'); }); }
+      else if (popAnchor && !document.body.contains(popAnchor)) close();
+    }
+  }
+
+  function place(o, R){
+    var docs = R.docs, n = docs.length, mode = R.mode, dark = !!o.dark;
+    if (!n) return;
+    var gEls = R.ks.map(function(k){ return o.svg.querySelector('[data-k="' + k + '"]'); });
+    var keep = R.c === o.selConn;
+    function put(el, x, y, gi, key, idxs){
+      el.style.left = x + 'px'; el.style.top = y + 'px';
+      el.setAttribute('data-cdk', (o.uid || 'cd') + ':' + R.ci + ':' + key);
+      el.__g = [gEls[gi]];
+      el.addEventListener('mouseenter', function(){ el.__g.forEach(function(g){ if (g) g.classList.add('hot'); }); });
+      el.addEventListener('mouseleave', function(){ if (!el.classList.contains('on')) el.__g.forEach(function(g){ if (g) g.classList.remove('hot'); }); });
+      el.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        if (o.onPick) { o.onPick(R.c, idxs, el); return; }
+        if (popAnchor === el) { close(); return; }
+        if (idxs.length === 1 && el.className.indexOf('cd-count') < 0 && el.className.indexOf('cd-more') < 0) openDoc(el, docs[idxs[0]], R.via, dark);
+        else openList(el, idxs.map(function(i){ return docs[i]; }), R.via, dark);
+      });
+      o.layer.appendChild(el);
+      if (keep && gEls[gi]) gEls[gi].classList.add('act');
+    }
+    var all = docs.map(function(_, i){ return i; });
+    if (mode === 'count') {
+      put(countEl(docs, dark), 0, 0, 0, 'c', all);
+      var mp = midPt(sample(R.gs[0].d)), last = o.layer.lastChild;
+      last.style.left = mp.x + 'px'; last.style.top = mp.y + 'px';
+      return;
+    }
+    var lines = mode === 'lines' && R.gs.length > 1;
+    if (lines && R.gs[0].mid) {
+      docs.forEach(function(d, i){ put(beadEl(d, dark), R.gs[i].mid.x, R.gs[i].mid.y, i, 'd' + i, [i]); });
+      return;
+    }
+    var cap = mode === 'collapse' ? CAP : Infinity, base = R.gs[0], items = [], v, j;
+    var els = docs.map(function(d){ return beadEl(d, dark); });
+    if (base.hor) {
+      els.forEach(function(e){ e.style.visibility = 'hidden'; o.layer.appendChild(e); });
+      var ws = els.map(function(e, i){ return e.offsetWidth || Math.min(180, 40 + 6.6 * title(docs[i]).length); });
+      var probe = moreEl(n); probe.style.visibility = 'hidden'; o.layer.appendChild(probe);
+      var wm = probe.offsetWidth || 36; probe.remove();
+      els.forEach(function(e){ e.remove(); e.style.visibility = ''; });
+      var avail = Math.abs(base.x2 - base.x1) - 2 * EDGE;
+      var width = function(v){ var cnt = v + (v < n ? 1 : 0), t = 0, i; for (i = 0; i < v; i++) t += ws[i]; return t + (v < n ? wm : 0) + GAP * Math.max(0, cnt - 1); };
+      v = Math.min(n, cap);
+      if (!lines) while (v > 0 && (width(v) > avail || v + (v < n ? 1 : 0) > cap)) v--;
+      for (j = 0; j < v; j++) items.push({ e:els[j], w:ws[j], idxs:[j], gi:lines ? j : 0, key:'d' + j });
+      if (v < n) items.push({ e:moreEl(n - v), w:wm, idxs:all.slice(v), gi:0, key:'m' });
+      var x = (base.x1 + base.x2) / 2 - width(v) / 2;
+      items.forEach(function(it){ put(it.e, x + it.w / 2, lines ? R.gs[it.gi].y1 : base.y1, it.gi, it.key, it.idxs); x += it.w + GAP; });
+    } else {
+      var availV = Math.abs(base.y2 - base.y1) - 2 * EDGE, fit = Math.max(1, Math.floor((availV + GAP) / SLOT));
+      var slots = lines ? n : Math.min(fit, cap);
+      v = n <= slots ? n : slots - 1;
+      for (j = 0; j < v; j++) items.push({ e:els[j], idxs:[j], gi:lines ? j : 0, key:'d' + j });
+      if (v < n) items.push({ e:moreEl(n - v), idxs:all.slice(v), gi:0, key:'m' });
+      var ym = (base.y1 + base.y2) / 2, cache = {};
+      items.forEach(function(it, k){
+        var y = ym + (k - (items.length - 1) / 2) * SLOT;
+        var pts = cache[it.gi] || (cache[it.gi] = sample(R.gs[it.gi].d));
+        put(it.e, xAt(pts, y), y, it.gi, it.key, it.idxs);
+      });
+    }
+  }
+
+  /* ── Карточка документа и список ── */
+  function viaHtml(v){
+    return '<div class="cd-via"><i style="background:' + esc(v.a.color) + '"></i>' + esc(v.a.role || '') + '<b>' + (v.both ? '↔' : '→') + '</b>' +
+      '<i style="background:' + esc(v.b.color) + '"></i>' + esc(v.b.role || '') + '</div>';
+  }
+  function listHtml(docs, dark){
+    return '<div class="cd-list">' + docs.map(function(d){
+      var url = safeUrl(d.url), desc = String(d.desc || '').trim();
+      return '<div class="cd-li"><button type="button" class="cd-li-btn" aria-expanded="false">' + icon(d.type, dark) +
+        '<span class="cd-li-t">' + esc(title(d)) + '</span>' + CHEV + '</button><div class="cd-li-more">' +
+        (desc ? '<div class="cd-li-desc">' + esc(desc) + '</div>' : (url ? '' : '<div class="cd-li-desc">Описания нет.</div>')) +
+        (url ? linkHtml('cd-ext', url, 'Открыть · ' + esc(source(url)) + ' ' + LINK) : '') + '</div></div>';
+    }).join('') + '</div>';
+  }
+  var pop = null, popAnchor = null, popKey = '', raf = 0;
+  function ensure(){
+    if (!document.getElementById('cd-css')) {
+      var s = document.createElement('style'); s.id = 'cd-css'; s.textContent = CSS;
+      (document.head || document.documentElement).appendChild(s);
+    }
+    if (!pop && document.body) {
+      pop = document.createElement('div'); pop.className = 'cd-pop'; pop.setAttribute('role', 'dialog');
+      document.body.appendChild(pop);
+    }
+  }
+  function show(anchor, html, label){
+    ensure();
+    if (popAnchor && popAnchor !== anchor) release(popAnchor);
+    pop.innerHTML = html; pop.setAttribute('aria-label', label);
+    popAnchor = anchor; popKey = anchor.getAttribute('data-cdk') || '';
+    anchor.classList.add('on');
+    if (anchor.__g) anchor.__g.forEach(function(g){ if (g) g.classList.add('hot'); });
+    position(); pop.classList.add('open');
+    cancelAnimationFrame(raf);
+    (function tick(){ if (!popAnchor) return; position(); raf = requestAnimationFrame(tick); })();
+  }
+  function openDoc(anchor, d, via, dark){
+    var c = tcolor(d.type, dark), url = safeUrl(d.url), desc = String(d.desc || '').trim();
+    show(anchor,
+      '<div class="cd-bar" style="background:' + c + '"></div><div class="cd-head"><button type="button" class="cd-x" aria-label="Закрыть">' + XSVG + '</button>' +
+      '<span class="cd-ty" style="color:' + c + ';background:' + ha(c, dark ? .16 : .12) + '">' + icon(d.type, dark) + TYPES[ty(d.type)].name + '</span>' +
+      '<div class="cd-title">' + esc(title(d)) + '</div>' + viaHtml(via) + '</div>' +
+      (desc ? '<div class="cd-body">' + esc(desc) + '</div>' : '') +
+      (url ? linkHtml('cd-open', url, 'Открыть документ<span class="cd-src">' + esc(source(url)) + ' ' + LINK + '</span>')
+           : '<div class="cd-nolink">' + (desc ? 'Ссылки нет — только описание.' : 'Ни описания, ни ссылки пока нет.') + '</div>'),
+      title(d));
+  }
+  function openList(anchor, docs, via, dark){
+    show(anchor,
+      '<div class="cd-head"><button type="button" class="cd-x" aria-label="Закрыть">' + XSVG + '</button>' +
+      '<div class="cd-title">' + docWord(docs.length) + '</div>' + viaHtml(via) + '</div>' +
+      '<div class="cd-body cd-listbody">' + listHtml(docs, dark) + '</div>', 'Документы на связи');
+  }
+  function position(){
+    if (!popAnchor || !pop) return;
+    if (!document.body.contains(popAnchor)) { close(); return; }
+    if (window.innerWidth <= 560) { pop.style.left = ''; pop.style.top = ''; return; }
+    var r = popAnchor.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight, m = 16;
+    var left = r.right + 12, top = r.top + r.height / 2 - ph / 2;
+    if (left + pw > window.innerWidth - m) left = r.left - 12 - pw;
+    if (left < m) {
+      left = Math.min(Math.max(m, r.left + r.width / 2 - pw / 2), window.innerWidth - m - pw);
+      top = r.bottom + 10;
+      if (top + ph > window.innerHeight - m) top = r.top - 10 - ph;
+    }
+    top = Math.min(Math.max(m, top), window.innerHeight - m - ph);
+    pop.style.left = Math.round(left) + 'px'; pop.style.top = Math.round(top) + 'px';
+  }
+  function release(a){
+    a.classList.remove('on');
+    if (a.__g && !(a.matches && a.matches(':hover'))) a.__g.forEach(function(g){ if (g) g.classList.remove('hot'); });
+  }
+  function close(){
+    if (popAnchor) release(popAnchor);
+    popAnchor = null; popKey = '';
+    cancelAnimationFrame(raf);
+    if (pop) pop.classList.remove('open');
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var li = t.closest('.cd-li-btn');
+    if (li) {
+      var it = li.parentNode; it.classList.toggle('open');
+      li.setAttribute('aria-expanded', it.classList.contains('open') ? 'true' : 'false');
+      return;
+    }
+    var a = t.closest('a.cd-open, a.cd-ext');
+    if (a) {
+      /* В хабе такие ссылки уже открывает его общий обработчик. */
+      if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      e.preventDefault();
+      openLink(a.getAttribute('href'), e.altKey);
+      return;
+    }
+    if (t.closest('.cd-x')) { close(); return; }
+    if (popAnchor && pop && !pop.contains(t)) close();
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && popAnchor) close(); });
+
+  ensure();
+  window.__chartDocs = {
+    TYPES:TYPES, VIEWS:VIEWS, esc:esc, ha:ha, ty:ty, tcolor:tcolor, icon:icon, docWord:docWord, docsOf:docsOf,
+    view:view, source:source, safeUrl:safeUrl, openLink:openLink, chipHtml:chipHtml, chipW:chipW,
+    drawConns:drawConns, listHtml:listHtml, close:close, ensure:ensure
+  };
+  return window.__chartDocs;
+}
+/* ══ chartDocsKit:end ══ */
+const DK = chartDocsKit();
+
 // ═══════════════════════════ SVG LINES ═══════════════════════
 function nodeBox(id){const d=nodes[id];const el=document.getElementById(id);if(!d||!el)return null;const sz=nodeSize(id);return{cx:d.x+sz.w/2,l:d.x,r:d.x+sz.w,top:d.y,bot:d.y+sz.h};}
 /** Геометрия линии. Блоки на одном уровне (по высоте перекрываются) —
@@ -1047,8 +1695,9 @@ function connGeom(p,ch){
 }
 function drawLines(){
   const svg=document.getElementById('svg-lines');
+  const layer=document.getElementById('cd-layer');
   const ns=Object.values(nodes);
-  if(!ns.length){svg.innerHTML='';return;}
+  if(!ns.length){svg.innerHTML='';layer.innerHTML='';return;}
   const pad=300;
   const mx=Math.min(...ns.map(n=>n.x))-pad,my=Math.min(...ns.map(n=>n.y))-pad;
   const MX=Math.max(...ns.map(n=>n.x+nodeSize(n.id).w))+pad,MY=Math.max(...ns.map(n=>n.y+nodeSize(n.id).h))+pad;
@@ -1057,35 +1706,19 @@ function drawLines(){
   svg.setAttribute('viewBox',`${mx} ${my} ${MX-mx} ${MY-my}`);
 
   const dark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const defStroke=dark?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.18)';
-  const actSet=new Set();
-  if(selId)conns.forEach(c=>{if(c.from===selId||c.to===selId)actSet.add(c.from+'>'+c.to);});
-  const seen=new Set();let defs='<defs>',paths='',gi=0;
-  // default marker
-  defs+=`<marker id="ah" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>`;
-  conns.forEach(c=>{
-    const k=c.from+'>'+c.to;if(seen.has(k))return;seen.add(k);
-    const p=nodeBox(c.from),ch=nodeBox(c.to);if(!p||!ch)return;
-    const g=connGeom(p,ch);
-    const isA=actSet.has(k);
-    if(isA){
-      const sc=nodes[c.from]?.color||'#3b82f6',tc=nodes[c.to]?.color||'#3b82f6';
-      const gid='g'+gi++;
-      defs+=`<linearGradient id="${gid}" x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="${sc}"/><stop offset="100%" stop-color="${tc}"/></linearGradient>`;
-      defs+=`<marker id="ah-${gid}" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="${tc}"/></marker>`;
-      if(c.both)defs+=`<marker id="ahs-${gid}" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="${sc}"/></marker>`;
-      paths+=`<path d="${g.d}" fill="none" stroke="url(#${gid})" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-${gid})"${c.both?` marker-start="url(#ahs-${gid})"`:''}/>`;
-    } else {
-      const st=c.color||defStroke;
-      paths+=`<path d="${g.d}" fill="none" stroke="${st}" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"${c.both?' marker-start="url(#ah)"':''}/>`;
-    }
-  });
-  svg.innerHTML=defs+'</defs>'+paths;
+  /* Линии, баблы документов и подсветку рисует общий chartDocsKit —
+     тот же, что в экспорте, view.html и хабах. В редакторе клик по
+     баблу или линии выделяет связь, а не открывает документ. */
+  DK.drawConns({svg, layer, conns, uid:'ed', dark, connGeom, settings:chartSettings,
+    defStroke:dark?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.18)',
+    box:nodeBox, node:id=>nodes[id], activeId:selId, selConn, edit:true,
+    onPick:(c,idxs)=>{if(!connMode)selectConn(c, idxs[0]);}});
 }
 
 // ═══════════════════════════ DELETE ══════════════════════════
 function deleteSelected(){
   if(multiSel.size>0){deleteMulti();return;}
+  if(selConn){conns=conns.filter(c=>c!==selConn);deselect();snapshot();return;}
   if(!selId)return;
   document.getElementById(selId)?.remove();delete nodes[selId];
   conns=conns.filter(c=>c.from!==selId&&c.to!==selId);
@@ -1159,7 +1792,17 @@ document.addEventListener('keydown',e=>{
   }
 });
 document.addEventListener('keyup',e=>{if(e.code==='Space'){spaceDown=false;cvWrap.style.cursor='';}});
-cvWrap.addEventListener('click',e=>{if(e.target===cvWrap||e.target===world){clearMulti();deselect();}});
+/* Текст в панели правится на каждый символ без снимка истории — иначе
+   отмена шла бы по буквам. Снимок (и сохранение) — когда поле отпустили. */
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el&&el.matches&&el.matches('input[type=text],textarea')&&el.closest('#sb-body,#mob-sheet-body')) snapshot();
+});
+cvWrap.addEventListener('click',e=>{
+  const hit=e.target.closest&&e.target.closest('.cd-hit');
+  if(hit){e.stopPropagation();if(connMode)return;selectConn(conns[+hit.dataset.ci]);return;}
+  if(e.target===cvWrap||e.target===world){clearMulti();deselect();}
+});
 
 // ═══════════════════════════ CLEAR / EXAMPLE ═════════════════
 function clearAll(s){if(!s&&!confirm('Очистить?'))return;document.querySelectorAll('.onode').forEach(n=>n.remove());nodes={};conns=[];nc=0;clearMulti();deselect();drawLines();}
@@ -1264,8 +1907,13 @@ function buildExport(avatarMode){
         : (e.avatar||'')
     }))
   }));
-  const NODES_J=JSON.stringify(shiftedForExport);
-  const CONNS_J=JSON.stringify(conns);
+  /* Данные лежат прямо в теге script: закрывающий тег в описании
+     документа оборвал бы его раньше времени, поэтому «<» экранируем,
+     как в хабах. */
+  const jsonIn=v=>JSON.stringify(v).replace(/</g,'\\u003c');
+  const NODES_J=jsonIn(shiftedForExport);
+  const CONNS_J=jsonIn(conns);
+  const SETTINGS_J=jsonIn(chartSettings||{});
   const REDDY=REDDY_ICON;
 
 return `<!DOCTYPE html>
@@ -1333,6 +1981,8 @@ html,body{height:100%;font-family:'Geist',system-ui,sans-serif;background:var(--
 .zoom-ctrl{position:fixed;top:68px;right:16px;z-index:100;display:flex;flex-direction:column;gap:4px}
 .zoom-ctrl button{width:32px;height:32px;border-radius:8px;font-size:16px;font-weight:600;background:var(--bg);border:1px solid var(--b2);color:var(--t1);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.1)}
 .zoom-ctrl button:hover{background:var(--bg2)}
+.cd-bead,.cd-pop,.cd-layer,.cd-list{--cd-bg:var(--bg);--cd-bg2:var(--bg2);--cd-b1:var(--b1);--cd-b2:var(--b2);--cd-t1:var(--t1);--cd-t2:var(--t2);--cd-t3:var(--t3)}
+.dp-desc{font-size:12px;color:var(--t2);line-height:1.6;padding:2px 0;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -1345,7 +1995,7 @@ html,body{height:100%;font-family:'Geist',system-ui,sans-serif;background:var(--
   </div>
   <div class="hdr-tip">Нажмите на карточку</div>
 </div>
-<div class="body" id="body"><div id="stage"><svg id="svg-lines"></svg></div></div>
+<div class="body" id="body"><div id="stage"><svg id="svg-lines"></svg><div id="cd-layer" class="cd-layer"></div></div></div>
 <div class="zoom-ctrl" id="zoom-ctrl">
   <button onclick="chgZ(.15)" title="Увеличить">+</button>
   <div id="zlbl" style="font-size:10px;font-weight:600;color:var(--t3);text-align:center;cursor:default">100%</div>
@@ -1360,11 +2010,13 @@ html,body{height:100%;font-family:'Geist',system-ui,sans-serif;background:var(--
     <div class="dp-role" id="dp-role"></div><div class="dp-dept" id="dp-dept"></div>
     <div class="dp-sched" id="dp-sched-box"><span class="dp-sd" id="dp-sd"></span><span id="dp-st"></span></div>
   </div>
-  <div class="dp-body"><div class="dp-slb" id="dp-slb-duties">Обязанности</div><div id="dp-duties"></div><div class="dp-slb" id="dp-slb-emps">Сотрудники</div><div id="dp-emps"></div></div>
+  <div class="dp-body"><div class="dp-slb" id="dp-slb-duties">Обязанности</div><div id="dp-duties"></div><div class="dp-slb" id="dp-slb-emps">Сотрудники</div><div id="dp-emps"></div><div class="dp-slb" id="dp-slb-docs">Документы</div><div id="dp-docs"></div></div>
 </div>
 </div>
 <script>
-var NODES=${NODES_J};var CONNS=${CONNS_J};
+var NODES=${NODES_J};var CONNS=${CONNS_J};var SETTINGS=${SETTINGS_J};
+${chartDocsKit.toString()}
+var DK=chartDocsKit();
 var REDDY_IC='${REDDY}';
 var activeId=null;
 var vx=0,vy=0,zoom=1;
@@ -1449,14 +2101,14 @@ body.addEventListener('wheel',function(e){
 function ha(h,a){try{var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return'rgba('+r+','+g+','+b+','+a+')'}catch(e){return h}}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function isLightColor(h){try{var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return(0.299*r+0.587*g+0.114*b)/255>0.6}catch(e){return false}}
-function groupCardWidth(roleText,hasArrow){
+function groupCardWidth(roleText,hasArrow,nDocs){
   var probe=document.createElement('span');
   probe.style.cssText='position:absolute;visibility:hidden;white-space:nowrap;left:-9999px;top:-9999px;font-family:Geist,system-ui,sans-serif;font-weight:700;font-size:13.5px';
   probe.textContent=roleText;
   document.body.appendChild(probe);
   var textW=probe.offsetWidth;
   probe.remove();
-  return Math.max(140,Math.min(640,Math.ceil(textW+28+(hasArrow?28:0))));
+  return Math.max(140,Math.min(640,Math.ceil(textW+28+(hasArrow?28:0)+DK.chipW(nDocs||0))));
 }
 function init(){
   NODES.forEach(function(d){
@@ -1471,13 +2123,14 @@ function init(){
     var arrStroke=light?'#1a1a1a':'#fff';
     var subtitle=isGroup?esc(d.dept||''):(esc(d.dept||'')+' \u00b7 '+esc(d.sched||''));
     var subHtml=subtitle.trim()?'<div class="on-dept" style="color:'+deptColor+'">'+subtitle+'</div>':'';
-    /* Группа без описания раскрывать нечем — она просто шапка. */
-    var expandable=!(isGroup&&!d.desc);
+    /* Группа без описания и без документов раскрывать нечем — она просто шапка. */
+    var nDocs=DK.docsOf(d).length;
+    var expandable=!(isGroup&&!d.desc&&!nDocs);
     var arrHtml=expandable?'<div class="on-arr" style="background:'+arrBg+'"><svg viewBox="0 0 8 8" fill="none"><path d="M2 1.5l3.5 3L2 7" stroke="'+arrStroke+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>':'';
     if(!expandable) el.classList.add('onode-static');
-    var centerText=isGroup&&!d.dept&&!d.desc;
-    el.innerHTML='<div class="on-head" style="background:linear-gradient(135deg,'+c1+','+c2+')"><div class="on-texts"'+(centerText?' style="text-align:center"':'')+'><div class="on-role" style="color:'+roleColor+'">'+esc(d.role)+'</div>'+subHtml+'</div>'+arrHtml+'</div>';
-    if(isGroup) el.style.width=(d.w||groupCardWidth(d.role,expandable))+'px';
+    var centerText=isGroup&&!d.dept&&!expandable;
+    el.innerHTML='<div class="on-head" style="background:linear-gradient(135deg,'+c1+','+c2+')"><div class="on-texts"'+(centerText?' style="text-align:center"':'')+'><div class="on-role" style="color:'+roleColor+'">'+esc(d.role)+'</div>'+subHtml+'</div>'+DK.chipHtml(nDocs,light)+arrHtml+'</div>';
+    if(isGroup) el.style.width=(d.w||groupCardWidth(d.role,expandable,nDocs))+'px';
     if(expandable) el.addEventListener('click',function(e){e.stopPropagation();openNode(d.id);});
     document.getElementById('stage').appendChild(el);
   });
@@ -1494,13 +2147,21 @@ function openNode(id){
   document.getElementById('dp-sd').style.background=d.color;
   document.getElementById('dp-st').textContent='График '+d.sched;
   document.getElementById('dp-sched-box').style.display=d.kind==='group'?'none':'inline-flex';
+  DK.close();
+  var docs=DK.docsOf(d),dark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  document.getElementById('dp-slb-docs').style.display=docs.length?'block':'none';
+  document.getElementById('dp-slb-docs').textContent='Документы · '+docs.length;
+  document.getElementById('dp-docs').innerHTML=docs.length?DK.listHtml(docs,dark):'';
   if(d.kind==='group'){
+    /* Группа с одними документами раскрывается без пустого «Описания». */
     document.getElementById('dp-slb-duties').textContent='Описание';
-    document.getElementById('dp-duties').innerHTML=d.desc?'<div style="font-size:12px;color:var(--t2);line-height:1.6;padding:2px 0;white-space:pre-wrap">'+esc(d.desc)+'</div>':'<div class="dp-none">—</div>';
+    document.getElementById('dp-slb-duties').style.display=d.desc||!docs.length?'block':'none';
+    document.getElementById('dp-duties').innerHTML=d.desc?'<div class="dp-desc">'+esc(d.desc)+'</div>':(docs.length?'':'<div class="dp-none">—</div>');
     document.getElementById('dp-slb-emps').style.display='none';
     document.getElementById('dp-emps').innerHTML='';
   } else {
     document.getElementById('dp-slb-duties').textContent='Обязанности';
+    document.getElementById('dp-slb-duties').style.display='block';
     document.getElementById('dp-duties').innerHTML=d.duties&&d.duties.length?d.duties.map(function(t){return'<div class="dp-duty"><span class="dp-dd" style="background:'+esc(d.color)+'"></span>'+esc(t)+'</div>';}).join(''):'<div class="dp-none">—</div>';
     document.getElementById('dp-slb-emps').style.display=(d.emps===null||d.emps===undefined)?'none':'block';
     document.getElementById('dp-emps').innerHTML=(d.emps===null||d.emps===undefined)?'':(!d.emps.length)?'<div class="dp-none">Список уточняется</div>':d.emps.slice().sort(function(a,b){return(a.name||'').localeCompare(b.name||'','ru');}).map(function(e){
@@ -1543,31 +2204,16 @@ function drawLines(){
   var svg=document.getElementById('svg-lines');var stage=document.getElementById('stage');
   svg.setAttribute('width',stage.offsetWidth);svg.setAttribute('height',stage.offsetHeight);
   var dark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  var defSt=dark?'rgba(255,255,255,0.28)':'rgba(0,0,0,0.15)';
-  var aSet=new Set();if(activeId)CONNS.forEach(function(c){if(c.from===activeId||c.to===activeId)aSet.add(c.from+'>'+c.to);});
-  var seen=new Set();var defs='<defs>';var paths='';var gi=0;
-  defs+='<marker id="ah" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="context-stroke"/></marker>';
-  CONNS.forEach(function(c){
-    var k=c.from+'>'+c.to;if(seen.has(k))return;seen.add(k);
-    var p=nbox(c.from),ch=nbox(c.to);if(!p||!ch)return;
-    var g=connGeom(p,ch);var isA=aSet.has(k);
-    if(isA){
-      var sc=esc(NODES.find(function(n){return n.id===c.from})?.color||'#3b82f6');
-      var tc=esc(NODES.find(function(n){return n.id===c.to})?.color||'#3b82f6');
-      var gid='g'+gi++;
-      defs+='<linearGradient id="'+gid+'" x1="'+g.x1+'" y1="'+g.y1+'" x2="'+g.x2+'" y2="'+g.y2+'" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="'+sc+'"/><stop offset="100%" stop-color="'+tc+'"/></linearGradient>';
-      defs+='<marker id="ah-'+gid+'" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="'+tc+'"/></marker>';
-      if(c.both)defs+='<marker id="ahs-'+gid+'" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1.5L8 5L1 8.5" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="'+sc+'"/></marker>';
-      paths+='<path d="'+g.d+'" fill="none" stroke="url(#'+gid+')" stroke-width="2.5" stroke-linecap="round" marker-end="url(#ah-'+gid+')"'+(c.both?' marker-start="url(#ahs-'+gid+')"':'')+'/>';
-    } else {
-      var st=esc(c.color||defSt);
-      paths+='<path d="'+g.d+'" fill="none" stroke="'+st+'" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ah)"'+(c.both?' marker-start="url(#ah)"':'')+'/>';
-    }
-  });
-  svg.innerHTML=defs+'</defs>'+paths;
+  /* Линии и баблы документов — общий chartDocsKit, как в редакторе. */
+  DK.drawConns({svg:svg,layer:document.getElementById('cd-layer'),conns:CONNS,uid:'x',dark:dark,connGeom:connGeom,settings:SETTINGS,
+    defStroke:dark?'rgba(255,255,255,0.28)':'rgba(0,0,0,0.15)',box:nbox,activeId:activeId,
+    node:function(id){return NODES.find(function(n){return n.id===id});}});
 }
 var rf;function sd(){cancelAnimationFrame(rf);rf=requestAnimationFrame(drawLines);}
 window.addEventListener('resize',sd);document.getElementById('body').addEventListener('scroll',sd);
+/* Страница могла открыться скрытой (во фрейме, в свёрнутом блоке):
+   тогда размеры карточек нулевые — перерисовываем, когда она появится. */
+if(window.ResizeObserver)new ResizeObserver(sd).observe(document.getElementById('body'));
 window.addEventListener('load',function(){
   function boot(){
     /* Ширина карточки группы меряется по отрисованному тексту, поэтому
@@ -1604,7 +2250,12 @@ function doImport(){
     if(!nm||!cm){errEl.textContent='Не найдены данные блоков. Убедитесь что вы вставили экспортированный HTML.';errEl.style.display='block';return;}
     const importedNodes=JSON.parse(nm[1]);
     const importedConns=JSON.parse(cm[1]);
+    /* Настройки схемы есть только в выгрузках с документами. */
+    const sm=code.match(/var SETTINGS=(\{[\s\S]*?\});/);
+    let importedSettings={};
+    try{ if(sm) importedSettings=JSON.parse(sm[1])||{}; }catch(e){}
     clearAll(true);
+    chartSettings=importedSettings;
     // find max nc to avoid id collisions
     importedNodes.forEach(d=>{
       const nnum=parseInt((d.id||'').match(/^n(\d+)/)?.[1]||0);
@@ -1658,6 +2309,7 @@ function loadDiagram() {
   document.querySelectorAll('.onode').forEach(function(n){ n.remove(); });
   nodes = {};
   conns = body.conns || [];
+  chartSettings = body.settings || {};
   nc = 0;
   Object.values(body.nodes || {}).forEach(function(nd) {
     const match = (nd.id || '').match(/^n(\d+)/);
@@ -1671,7 +2323,7 @@ function loadDiagram() {
   drawLines();
   setTimeout(fitView, 80);
   updateSaveStatus('saved');
-  history = [JSON.stringify({ nodes, conns })];
+  history = [JSON.stringify({ nodes, conns, settings: chartSettings })];
   histIdx = 0;
   updateUndoUI();
 }
@@ -1688,7 +2340,7 @@ function saveDiagram() {
   clearTimeout(saveTimer);
   updateSaveStatus('saving');
   const title = document.getElementById('chart-title').value || 'Без названия';
-  if (!lsWrite(LS_DOC + DIAGRAM_ID, {nodes: nodes, conns: conns})) {
+  if (!lsWrite(LS_DOC + DIAGRAM_ID, {nodes: nodes, conns: conns, settings: chartSettings})) {
     updateSaveStatus('error');
     toast('Не хватает места в браузере — выгрузите резервную копию и удалите лишнее');
     return;
@@ -1717,7 +2369,7 @@ function exportDiagramFile() {
   saveDiagram();
   const title = document.getElementById('chart-title').value || 'Без названия';
   const payload = {studio: 1, kind: 'chart', id: DIAGRAM_ID, title: title,
-                   updated: Date.now(), doc: {nodes: nodes, conns: conns}};
+                   updated: Date.now(), doc: {nodes: nodes, conns: conns, settings: chartSettings}};
   const map = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',
     н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',
     ы:'y',ь:'',э:'e',ю:'yu',я:'ya'};
@@ -1861,7 +2513,11 @@ function openMobSheet(){
   if(!isMobile()) return;
   const body = document.getElementById('mob-sheet-body');
   const title = document.getElementById('mob-sheet-title');
-  if(selId && nodes[selId]){
+  if(selConn){
+    title.textContent = 'Связь';
+    const sbContent = document.getElementById('sb-body');
+    body.innerHTML = sbContent ? sbContent.innerHTML : '';
+  } else if(selId && nodes[selId]){
     title.textContent = nodes[selId].role || 'Свойства блока';
     // Clone sidebar content into sheet
     const sbContent = document.getElementById('sb-body');
@@ -1871,8 +2527,9 @@ function openMobSheet(){
     const sbContent = document.getElementById('sb-body');
     body.innerHTML = sbContent ? sbContent.innerHTML : '';
   } else {
-    title.textContent = 'Свойства';
-    body.innerHTML = '<p style="color:var(--t3);font-size:13px;padding:8px 0;text-align:center">Нажмите на блок чтобы выбрать его</p>';
+    title.textContent = 'Схема';
+    const sbContent = document.getElementById('sb-body');
+    body.innerHTML = sbContent ? sbContent.innerHTML : '';
   }
   document.getElementById('mob-sheet').classList.add('open');
   document.getElementById('mob-sheet-ov').classList.add('open');
@@ -1887,8 +2544,9 @@ function updateMobSelBar(){
   if(!isMobile()) return;
   const bar = document.getElementById('mob-sel-bar');
   if(!bar) return;
-  bar.style.display = (selId || (multiSel && multiSel.size > 0)) ? 'block' : 'none';
-  if(selId && nodes[selId]) bar.textContent = nodes[selId].role + ' · Свойства ↓';
+  bar.style.display = (selId || selConn || (multiSel && multiSel.size > 0)) ? 'block' : 'none';
+  if(selConn) bar.textContent = 'Связь · Свойства ↓';
+  else if(selId && nodes[selId]) bar.textContent = nodes[selId].role + ' · Свойства ↓';
   else if(multiSel && multiSel.size > 0) bar.textContent = 'Выбрано: ' + multiSel.size + ' · Свойства ↓';
 }
 // Tap mob-sel-bar opens sheet
