@@ -2390,6 +2390,14 @@ function exportDiagramFile() {
   document.getElementById('dash-btn').style.display = 'inline-flex';
   if (DIAGRAM_ID) {
     loadDiagram();
+    /* Ширина групп меряется по тексту: если схема открылась раньше,
+       чем приехал Geist, перемеряем — иначе в экспорт уйдёт узкая
+       карточка, и подпись залезет под значок и стрелку. */
+    if (document.fonts && document.fonts.load) {
+      const remeasure = function(){ Object.keys(nodes).forEach(function(id){ renderNode(id); }); drawLines(); };
+      document.fonts.load('700 13.5px Geist').then(remeasure, function(){});
+      document.fonts.addEventListener('loadingdone', remeasure);
+    }
     document.getElementById('chart-title').addEventListener('input', scheduleSave);
   } else {
     window.location.href = 'dashboard.html';

@@ -3785,6 +3785,11 @@ function chartDocsKit(){
       /* Ширину группы считаем той же меркой, что и редактор, —
          иначе карточка разъедется на пару пикселей. */
       if (isGroup) el.style.width = (d.w || groupCardWidth(d.role, expandable, nDocs)) + 'px';
+      /* Без готовой ширины (снимок из Charts её не хранит) карточку
+         меряем заново при каждой подгонке: схема монтируется раньше,
+         чем приедет Geist, и мерка по запасному шрифту выходит узкой —
+         подпись потом залезает под значок и стрелку. */
+      if (isGroup && !d.w) el.__fitW = function(){ return groupCardWidth(d.role, expandable, nDocs); };
       if (expandable) el.addEventListener('click', function(e){ e.stopPropagation(); toggleNode(d.id, el); });
       stage.appendChild(el);
       elById[d.id] = el;
@@ -3794,6 +3799,10 @@ function chartDocsKit(){
        ширина по тексту, у длинного названия — перенос строки. */
     function layout(){
       var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      NODES.forEach(function(d){
+        var el = elById[d.id];
+        if (el.__fitW) el.style.width = el.__fitW() + 'px';
+      });
       NODES.forEach(function(d){
         var el = elById[d.id];
         var w = el.offsetWidth || 200, h = el.offsetHeight || 70;
@@ -3958,6 +3967,8 @@ function chartDocsKit(){
       stage.style.width = W + 'px';
       stage.style.height = H + 'px';
       stage.style.transform = 'scale(' + scale + ')';
+      /* Схема уже блока — ставим по центру, как в отдельной выгрузке. */
+      stage.style.left = Math.max(0, Math.floor((vw - W * scale) / 2)) + 'px';
       viewport.style.height = Math.ceil(H * scale) + 'px';
       /* Ширину прокручиваемой области держит распорка. */
       spacer.style.width = Math.ceil(W * scale) + 'px';
@@ -3972,6 +3983,10 @@ function chartDocsKit(){
        группы, и высота карточек — пересчитываем, когда он готов. */
     if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
       document.fonts.ready.then(function(){ fit(); });
+      /* ready мог сработать до того, как стили шрифта вообще пришли
+         (медленная сеть, Confluence) — тогда ловим сам Geist. */
+      if (document.fonts.load) document.fonts.load('700 13.5px Geist').then(function(){ fit(); }, function(){});
+      if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function(){ fit(); });
     }
     var rt;
     window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(fit, 120); });
@@ -5241,7 +5256,7 @@ function buildHub(m, opts){
   h += '  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">\n';
   /* Схемы набраны Geist — тем же шрифтом, что и выгрузка из редактора схем. */
   if (flatSections(m).some(function(s){ return s.type === 'charts' && (s.charts || []).length; })) {
-    h += '  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;display=swap" rel="stylesheet">\n';
+    h += '  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@500&amp;display=swap" rel="stylesheet">\n';
   }
   if (m.sdk && !editing) h += '  <script src="/_sdk/element_sdk.js"><\/script>\n';
   h += '\n<script>\n' + runtime + '\n<\/script>\n\n';
